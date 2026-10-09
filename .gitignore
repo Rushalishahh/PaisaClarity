@@ -1,0 +1,35 @@
+# --- Secrets / environment ---
+.env
+backend/.env
+frontend-react/.env
+*.env.local
+
+# --- Private sample data (never commit real statements) ---
+samples_private/
+
+# --- Python ---
+__pycache__/
+*.pyc
+.venv/
+venv/
+.pytest_cache/
+
+# --- Node ---
+node_modules/
+frontend-react/dist/
+
+# --- Runtime artifacts ---
+backend/server.log
+backend/server_err.log
+backend/data/_temp_*
+
+# --- Editors / OS ---
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+
+*.log
+.freebuff/
+backend/.pytest_cache/

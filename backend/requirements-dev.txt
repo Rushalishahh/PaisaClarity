@@ -1,0 +1,7 @@
+# Dev/test-only dependencies - NOT needed to run the app itself.
+# Install with: venv\Scripts\pip install -r requirements-dev.txt
+pytest
+httpx
+reportlab
+# Used by scripts/make_test_pdfs.py to build the password-protected PDF fixture.
+pikepdf
