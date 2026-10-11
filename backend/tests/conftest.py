@@ -1,3 +1,14 @@
+import os
+
+import config  # noqa: F401 - importing it runs load_dotenv() once, so a real
+               # backend/.env populates os.environ BEFORE the fallbacks below.
+
+# Fallbacks so test collection works without backend/.env (fresh clone/CI).
+# setdefault never overrides a real OS/.env value. The dummy DATABASE_URL is
+# never connected to - the `client` fixture overrides get_db with SQLite.
+os.environ.setdefault("DATABASE_URL", "sqlite:///:memory:")
+os.environ.setdefault("SECRET_KEY", "test-only-value-not-a-secret")
+
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine

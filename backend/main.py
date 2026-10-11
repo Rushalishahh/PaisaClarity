@@ -9,11 +9,6 @@ from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Depends, Que
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
-from dotenv import load_dotenv
-
-# Read backend/.env before anything below reads os.environ (database.py also
-# calls this; repeating it is safe and keeps main.py self-sufficient).
-load_dotenv()
 
 from ingest import parse_statement, MAX_FILE_BYTES
 from ingest.errors import IngestError

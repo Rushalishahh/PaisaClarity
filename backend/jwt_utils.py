@@ -1,11 +1,9 @@
-import os
 import jwt
 from datetime import datetime, timedelta, timezone
-from dotenv import load_dotenv
 
-load_dotenv()
+from config import get_secret_key
 
-SECRET_KEY = os.getenv("SECRET_KEY")
+SECRET_KEY = get_secret_key()
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24  # token valid for 24 hours
 
