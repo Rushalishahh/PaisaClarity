@@ -1,0 +1,149 @@
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: 'Segoe UI', Arial, sans-serif;
+    background-color: #f5f6fa;
+    color: #2f3542;
+    padding: 40px 20px;
+}
+
+h1 {
+    text-align: center;
+    margin-bottom: 30px;
+    color: #1e272e;
+}
+
+.upload-section {
+    max-width: 500px;
+    margin: 0 auto 40px;
+    background: white;
+    padding: 24px;
+    border-radius: 12px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+    text-align: center;
+}
+
+#uploadBtn {
+    background-color: #2f6feb;
+    color: white;
+    border: none;
+    padding: 10px 20px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 14px;
+    margin-left: 10px;
+}
+
+#uploadBtn:hover {
+    background-color: #1d55c9;
+}
+
+#results {
+    max-width: 900px;
+    margin: 0 auto;
+}
+
+.card {
+    background: white;
+    padding: 24px;
+    border-radius: 12px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+    margin-bottom: 20px;
+}
+
+.card h2 {
+    margin-bottom: 16px;
+    font-size: 18px;
+    color: #1e272e;
+}
+
+.summary-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 16px;
+}
+
+.stat {
+    display: flex;
+    flex-direction: column;
+}
+
+.stat-label {
+    font-size: 13px;
+    color: #747d8c;
+    margin-bottom: 4px;
+}
+
+.stat-value {
+    font-size: 22px;
+    font-weight: 600;
+    color: #1e272e;
+}
+
+.category-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 12px;
+}
+
+.category-name {
+    width: 120px;
+    font-size: 14px;
+}
+
+.bar-container {
+    flex: 1;
+    background: #f1f2f6;
+    border-radius: 6px;
+    overflow: hidden;
+    height: 20px;
+}
+
+.bar {
+    background: #2f6feb;
+    height: 100%;
+    border-radius: 6px;
+}
+
+.category-amount {
+    width: 100px;
+    text-align: right;
+    font-size: 14px;
+    font-weight: 500;
+}
+
+.forecast-amount {
+    font-size: 28px;
+    font-weight: 700;
+    color: #2f6feb;
+    margin-bottom: 8px;
+}
+
+.alert-item {
+    padding: 10px;
+    background: #fff5e6;
+    border-left: 3px solid #ffa502;
+    border-radius: 4px;
+    margin-bottom: 8px;
+    font-size: 14px;
+}
+
+.suggestions-list {
+    padding-left: 20px;
+}
+
+.suggestions-list li {
+    margin-bottom: 8px;
+    font-size: 14px;
+}
+
+.low-confidence-note {
+    font-size: 13px;
+    color: #e67e22;
+    margin-top: 8px;
+}
