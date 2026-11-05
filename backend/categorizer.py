@@ -12,9 +12,9 @@ Real descriptions look like:
     INT.PD
 
 Strategy: normalize the narration FIRST (uppercase, strip digits and
-banking-rail tokens), then match against one keyword table. All rules live
-in the single CATEGORY_RULES structure below so adding a merchant or a
-category is a one-line change.
+banking-rail tokens), then match against precompiled whole-word regex patterns
+for each category. All rules live in the single CATEGORY_RULES structure below
+so adding a merchant or a category is a one-line change.
 
 NON_SPENDING_CATEGORIES is THE shared constant for the rest of the app:
 savings rate, anomalies, budgets and the health score must never count
@@ -31,44 +31,58 @@ CATEGORY_RULES = {
         "SALARY", "SAL", "PAYROLL", "WAGES", "STIPEND", "INTEREST CREDIT",
         "INT PD", "PENSION", "REFUND",
     ],
-    "Rent": ["RENT", "SOCIETY MAINT", "LANDLORD"],
-    "EMI & Loans": ["EMI", "LOAN", "FINANC", "BAJAJ FIN"],
-    "Investments": [
-        "SIP", "MUTUAL FUND", "ZERODHA", "GROWW", "KUVERA", "UPSTOX",
-        "ANGEL ONE", "HDFC SEC", "ICICI DIRECT", "SHAREKHAN", "PPF", "NPS", "EPF",
+    "Rent": ["RENT", "SOCIETY MAINT", "SOCIETY MAINTENANCE", "LANDLORD"],
+    "EMI & Loans": [
+        "EMI", "LOAN", "LOANS", "FINANCE", "FINANCIAL", "FINANC", "BAJAJ FIN", "BAJAJ FINANCE",
     ],
-    "Insurance": ["LIC", "HDFC LIFE", "SBI LIFE", "ICICI PRU", "INSURANCE", "BAJAJ ALLIANZ", "MAX LIFE", "TATA AIA", "POLICY PREMIUM"],
-    "Cash Withdrawal": ["ATM WDL", "ATM CASH", "ATM WITHDRAWAL", "CASH WDL", "ATM", "WDL", "CASH", "WITHDRAWAL"],
+    "Investments": [
+        "SIP", "MUTUAL FUND", "MUTUAL FUNDS", "ZERODHA", "GROWW", "KUVERA", "UPSTOX",
+        "ANGEL ONE", "HDFC SEC", "HDFC SECURITIES", "ICICI DIRECT", "SHAREKHAN", "PPF", "NPS", "EPF",
+    ],
+    "Insurance": [
+        "LIC", "HDFC LIFE", "SBI LIFE", "ICICI PRU", "ICICI PRUDENTIAL",
+        "INSURANCE", "BAJAJ ALLIANZ", "MAX LIFE", "TATA AIA", "POLICY PREMIUM",
+    ],
+    "Cash Withdrawal": [
+        "ATM WDL", "ATM CASH", "ATM WITHDRAWAL", "CASH WDL", "ATM", "WDL", "CASH", "WITHDRAWAL",
+    ],
     "Food": [
         "ZOMATO", "SWIGGY", "MCDONALDS", "MCDONALD", "DOMINOS", "PIZZA",
-        "KFC", "STARBUCKS", "CAFE", "RESTAURANT", "HOTEL", "EATFIT", "BOX8", "FAASOS",
+        "KFC", "STARBUCKS", "CAFE", "RESTAURANT", "LOCALRESTAURANT", "HOTEL", "EATFIT", "BOX8", "BOX", "FAASOS",
     ],
     "Groceries": [
         "BIGBASKET", "DMART", "BLINKIT", "ZEPTO", "GROFERS", "INSTAMART",
-        "JIO MART", "JIOMART", "MORE SUPERMARKET", "GROCERY", "SUPERMARKET", "RELIANCE FRESH",
+        "JIO MART", "JIOMART", "MORE SUPERMARKET", "GROCERY", "LOCALGROCERY", "SUPERMARKET", "RELIANCE FRESH",
     ],
     "Shopping": [
         "AMAZON", "FLIPKART", "MYNTRA", "AJIO", "MEESHO", "NYKAA", "TATA CLIQ",
         "CROMA", "RELIANCE DIGITAL", "DECATHLON", "IKEA",
     ],
     "Transport": [
-        "UBER", "OLA", "RAPIDO", "IRCTC", "REDBUS", "METRO", "PETROL", "FUEL",
+        "UBER", "OLA", "RAPIDO", "IRCTC", "REDBUS", "METRO", "PETROL", "PETROLPUMP", "PETROL PUMP", "FUEL",
         "INDIAN OIL", "HP PETROL", "BPCL", "SHELL", "FASTAG", "PARKING", "TOLL",
     ],
-    "Travel": ["MAKE MY TRIP", "MAKEMYTRIP", "GOIBIBO", "CLEARTRIP", "YATRA", "AIR INDIA", "INDIGO", "VISTARA", "AKASA", "IXIGO", "EASEMYTRIP"],
+    "Travel": [
+        "MAKE MY TRIP", "MAKEMYTRIP", "GOIBIBO", "CLEARTRIP", "YATRA", "AIR INDIA",
+        "INDIGO", "VISTARA", "AKASA", "IXIGO", "EASEMYTRIP",
+    ],
     "Bills": [
-        "ELECTRICITY", "POWER", "BESCOM", "MSEB", "TNEB", "TATA POWER", "ADANI",
+        "ELECTRICITY", "ELECTRICITYBOARD", "ELECTRICITY BOARD", "POWER", "BESCOM", "MSEB", "TNEB", "TATA POWER", "ADANI",
         "AIRTEL", "JIO", "VODAFONE", "BSNL", "BROADBAND", "ACT FIBERNET",
         "GAS", "INDANE", "HP GAS", "BHARATGAS", "BBPS", "BPAY", "WATER BILL", "DTH", "TATASKY", "SUN DIRECT",
     ],
     "Entertainment": [
         "NETFLIX", "HOTSTAR", "PRIME VIDEO", "SPOTIFY", "PRIME", "BOOKMYSHOW",
-        "YOUTUBE", "GAANA", "JIOSAVN", "DISNEY", "SONY LIV", "ZEE5", "GAMING",
+        "YOUTUBE", "GAANA", "JIOSAVN", "DISNEY", "SONY LIV", "ZEE5", "ZEE", "GAMING",
     ],
-    "Health": ["APOLLO", "PHARMEASY", "NETMEDS", "HOSPITAL", "CLINIC", "DIAGNOSTIC", "PHARMACY", "FORTIS"],
-    "Education": ["SCHOOL", "COLLEGE", "TUITION", "UDEMY", "COURSERA", "UNACADEMY", "BYJU", "FEES"],
+    "Health": [
+        "APOLLO", "PHARMEASY", "NETMEDS", "HOSPITAL", "CLINIC", "DIAGNOSTIC", "PHARMACY", "FORTIS",
+    ],
+    "Education": [
+        "SCHOOL", "COLLEGE", "TUITION", "UDEMY", "COURSERA", "UNACADEMY", "BYJU", "FEES",
+    ],
     "Transfers": [
-        "SELF", "OWN", "ACCOUNT TRANSFER", "SPLITWISE", "PAYTM P2P", "PHONEPE P2P", "TRANSFER",
+        "SELF", "OWN", "ACCOUNT TRANSFER", "SPLITWISE", "PAYTM P2P", "PAYTM", "PHONEPE P2P", "PHONEPE", "TRANSFER",
     ],
 }
 # "Other" is the explicit fallback - kept visible in the UI on purpose.
@@ -128,6 +142,7 @@ def apply_category_aliases(data, _key=None):
         return CATEGORY_ALIASES.get(data, data)
     return data
 
+
 # Banking-rail tokens that carry no merchant information.
 _RAIL_TOKENS = {
     "UPI", "POS", "NEFT", "IMPS", "RTGS", "ACH", "ECS", "BIL", "BPAY", "BBPS",
@@ -158,6 +173,28 @@ def normalize_description(description: str) -> str:
     return " ".join(words)
 
 
+def _compile_category_patterns(rules: dict[str, list[str]]) -> list[tuple[str, re.Pattern]]:
+    """
+    Precompile whole-word/phrase regex patterns for each category once at import time.
+    Sorting keywords longest-first guarantees multi-word phrases (e.g. 'MUTUAL FUND')
+    are matched properly. Word boundaries \\b ensure keywords match only whole words,
+    preventing substring false positives (e.g. 'SAL' in 'SALON', 'OLA' in 'COLA').
+    """
+    patterns = []
+    for category, keywords in rules.items():
+        sorted_kws = sorted(keywords, key=len, reverse=True)
+        # Match each keyword as a whole phrase, allowing one or more spaces between words
+        parts = [r"\s+".join(re.escape(w) for w in kw.split()) for kw in sorted_kws if kw.strip()]
+        if parts:
+            pattern = re.compile(r"\b(?:" + "|".join(parts) + r")\b")
+            patterns.append((category, pattern))
+    return patterns
+
+
+# Compiled once at import time for maximum performance
+_COMPILED_PATTERNS = _compile_category_patterns(CATEGORY_RULES)
+
+
 def categorize(description: str) -> str:
     """Return a category for a narration, or FALLBACK_CATEGORY ('Other')."""
     normalized = normalize_description(description)
@@ -165,11 +202,14 @@ def categorize(description: str) -> str:
         raw_upper = str(description or "").upper()
         if "ATM" in raw_upper:
             return "Cash Withdrawal"
+        if "BBPS" in raw_upper or "BPAY" in raw_upper:
+            return "Bills"
         return FALLBACK_CATEGORY
-    for category, keywords in CATEGORY_RULES.items():
-        for keyword in keywords:
-            if keyword.upper() in normalized:
-                return category
+
+    for category, pattern in _COMPILED_PATTERNS:
+        if pattern.search(normalized):
+            return category
+
     return FALLBACK_CATEGORY
 
 
