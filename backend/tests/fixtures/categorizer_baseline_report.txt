@@ -1,0 +1,69 @@
+=== CATEGORIZER BASELINE REPORT (UNMODIFIED CATEGORIZER) ===
+
+DEV SET: 30/35 correct (85.71%)
+
+Per-category Precision / Recall (Dev):
+  Bills              | Precision: 66.67% | Recall: 100.00% | Support: 2
+  Cash Withdrawal    | Precision: 100.00% | Recall: 100.00% | Support: 2
+  EMI & Loans        | Precision: 66.67% | Recall: 100.00% | Support: 2
+  Entertainment      | Precision: 66.67% | Recall: 100.00% | Support: 2
+  Food               | Precision: 100.00% | Recall: 100.00% | Support: 5
+  Groceries          | Precision: 100.00% | Recall: 100.00% | Support: 2
+  Income             | Precision: 75.00% | Recall: 100.00% | Support: 3
+  Insurance          | Precision: 100.00% | Recall: 50.00% | Support: 2
+  Investments        | Precision: 100.00% | Recall: 100.00% | Support: 3
+  Other              | Precision:  0.00% | Recall:  0.00% | Support: 4
+  Rent               | Precision: 100.00% | Recall: 100.00% | Support: 2
+  Shopping           | Precision: 100.00% | Recall: 100.00% | Support: 2
+  Transfers          | Precision: 100.00% | Recall: 100.00% | Support: 1
+  Transport          | Precision: 75.00% | Recall: 100.00% | Support: 3
+
+Misclassified Rows (Dev):
+  'UPI/123456/SALON BLISS/okaxis'
+    Expected: Other | Predicted: Income
+  'POS COCA COLA OUTLET'
+    Expected: Other | Predicted: Transport
+  'UPI/5566/GASOLINE STATION'
+    Expected: Other | Predicted: Bills
+  'POS 4567 PRIMEMART'
+    Expected: Other | Predicted: Entertainment
+  'ACH D- LIC POLICY PREMIUM'
+    Expected: Insurance | Predicted: EMI & Loans
+
+------------------------------------------------------------
+
+HELDOUT SET: 7/15 correct (46.67%)
+
+Per-category Precision / Recall (Heldout):
+  Bills              | Precision: 50.00% | Recall: 100.00% | Support: 1
+  Cash Withdrawal    | Precision:  0.00% | Recall:  0.00% | Support: 0
+  EMI & Loans        | Precision:  0.00% | Recall:  0.00% | Support: 0
+  Education          | Precision:  0.00% | Recall:  0.00% | Support: 1
+  Food               | Precision: 100.00% | Recall: 50.00% | Support: 4
+  Groceries          | Precision:  0.00% | Recall:  0.00% | Support: 2
+  Health             | Precision: 100.00% | Recall: 100.00% | Support: 1
+  Income             | Precision: 100.00% | Recall: 100.00% | Support: 1
+  Insurance          | Precision:  0.00% | Recall:  0.00% | Support: 0
+  Other              | Precision:  0.00% | Recall:  0.00% | Support: 1
+  Rent               | Precision:  0.00% | Recall:  0.00% | Support: 0
+  Shopping           | Precision: 100.00% | Recall: 50.00% | Support: 2
+  Transfers          | Precision: 100.00% | Recall: 50.00% | Support: 2
+  Transport          | Precision:  0.00% | Recall:  0.00% | Support: 0
+
+Misclassified Rows (Heldout):
+  'POS 8899 DELICIOUS BAKERY'
+    Expected: Food | Predicted: Insurance
+  'UPI/9988/CHOCOLATE FACTORY/PUNE'
+    Expected: Food | Predicted: Transport
+  'UPI/7766/CASHEW CORNER GROCERS'
+    Expected: Groceries | Predicted: Cash Withdrawal
+  'NEFT CURRENT ACC TRANSFER'
+    Expected: Transfers | Predicted: Rent
+  'UPI/3322/EMPOWER YOGA STUDIO'
+    Expected: Other | Predicted: Bills
+  'POS 1212 PREMIUM CLOTHING STORE'
+    Expected: Shopping | Predicted: EMI & Loans
+  'UPI/4455/PUBLIC LIBRARY DESK'
+    Expected: Education | Predicted: Insurance
+  'POS 6543 BLUEBERRY FARMS ORGANIC'
+    Expected: Groceries | Predicted: Other
