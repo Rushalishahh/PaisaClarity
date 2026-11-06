@@ -15,3 +15,4 @@ pydantic[email]
 pdfplumber
 openpyxl
 xlrd
+slowapi

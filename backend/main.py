@@ -17,6 +17,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 from dotenv import load_dotenv
+from slowapi.errors import RateLimitExceeded
+from slowapi.middleware import SlowAPIMiddleware
+from rate_limiter import limiter, custom_rate_limit_exceeded_handler
 
 # Read backend/.env before anything below reads os.environ (database.py also
 # calls this; repeating it is safe and keeps main.py self-sufficient).
@@ -61,6 +64,14 @@ async def lifespan(app: FastAPI):
     yield
 
 app = FastAPI(lifespan=lifespan)
+
+# Rate limiting with SlowAPI: protects sensitive endpoints (login, signup) against brute force.
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, custom_rate_limit_exceeded_handler)
+
+# SlowAPIMiddleware is added before CORSMiddleware so that the outer CORSMiddleware
+# wraps around rate limit responses, ensuring 429 errors include Access-Control-Allow-Origin headers.
+app.add_middleware(SlowAPIMiddleware)
 
 # CORS - allows a separate frontend (different origin) to call this API.
 # Origins come from the ALLOWED_ORIGINS env var (comma-separated, see

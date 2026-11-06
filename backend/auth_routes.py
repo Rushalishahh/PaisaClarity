@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
 
 from database import get_db
@@ -6,12 +6,14 @@ from models import User
 from schemas import UserSignup, UserLogin, Token
 from auth_utils import hash_password, verify_password
 from jwt_utils import create_access_token
+from rate_limiter import limiter, get_login_rate_limit, get_signup_rate_limit
 
 router = APIRouter()
 
 
 @router.post("/signup", response_model=Token)
-def signup(user_data: UserSignup, db: Session = Depends(get_db)):
+@limiter.limit(get_signup_rate_limit)
+def signup(request: Request, user_data: UserSignup, db: Session = Depends(get_db)):
     # Check if email is already registered
     existing_user = db.query(User).filter(User.email == user_data.email).first()
     if existing_user:
@@ -35,7 +37,8 @@ def signup(user_data: UserSignup, db: Session = Depends(get_db)):
 
 
 @router.post("/login", response_model=Token)
-def login(credentials: UserLogin, db: Session = Depends(get_db)):
+@limiter.limit(get_login_rate_limit)
+def login(request: Request, credentials: UserLogin, db: Session = Depends(get_db)):
     user = db.query(User).filter(User.email == credentials.email).first()
 
     if not user or not verify_password(credentials.password, user.hashed_password):

@@ -1,10 +1,26 @@
 from datetime import date
-from pydantic import BaseModel, EmailStr, model_validator
+from pydantic import BaseModel, EmailStr, model_validator, field_validator
 
 class UserSignup(BaseModel):
     email: EmailStr
     password: str
     full_name: str | None = None
+
+    @field_validator("password")
+    @classmethod
+    def validate_password(cls, v: str) -> str:
+        """Enforce password policy on signup:
+        - At least 8 characters
+        - Not entirely numeric
+        - At most 72 UTF-8 bytes (prevents bcrypt 5.0.0 crash / HTTP 500)
+        """
+        if len(v) < 8:
+            raise ValueError("Password must be at least 8 characters long")
+        if v.isdigit():
+            raise ValueError("Password cannot be entirely numeric")
+        if len(v.encode("utf-8")) > 72:
+            raise ValueError("Password cannot exceed 72 bytes")
+        return v
 
 class UserLogin(BaseModel):
     email: EmailStr
