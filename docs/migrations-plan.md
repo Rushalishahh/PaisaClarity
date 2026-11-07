@@ -110,24 +110,47 @@ If a migration fails or causes unexpected downtime:
 
 ## 7. Step 6: Order of Operations on Render
 
-To switch production to Alembic-only without downtime:
+To switch production to Alembic-only without downtime, choose the execution method that fits your Render hosting plan:
 
-1. **Deploy Alembic Metadata / Stamp**:
-   Run `alembic stamp head` (or `upgrade head` if needed) against Supabase using a secure local terminal or a one-off Render job with production `DATABASE_URL`.
-2. **Verify `/health/ready`**:
-   Check `https://paisa-clarity-api.onrender.com/health/ready` to ensure database readiness is 200 OK.
-3. **Configure Render Pre-Deploy Command**:
-   In **Render Dashboard $\rightarrow$ Settings $\rightarrow$ Build & Deploy**:
-   Set **Pre-Deploy Command** to:
+### Migration Execution Options
+
+#### Option A: Run Locally Against Production (Recommended for Free Tier)
+Because Render's native "Pre-Deploy Command" is a paid-tier feature, running migrations from a secure local terminal against Supabase is the safest, most controllable free-tier approach:
+1. Ensure you have taken a full backup in Supabase (**Database $\rightarrow$ Backups**).
+2. Set your production `DATABASE_URL` in a temporary, local-only terminal session (never commit it):
+   ```bash
+   cd backend
+   # Windows PowerShell:
+   $env:DATABASE_URL="postgresql://postgres:PASSWORD@db.PROJECT.supabase.co:5432/postgres"
+   alembic stamp head   # or `alembic upgrade head` if applying pending migrations
+   $env:DATABASE_URL=""
+   ```
+3. Test readiness probe: `https://paisa-clarity-api.onrender.com/health/ready`.
+
+#### Option B: Chain into Render Build Command (Free-Tier Compatible)
+Render's **Build Command** runs on every deploy across all tiers (including Free):
+1. In **Render Dashboard $\rightarrow$ Settings $\rightarrow$ Build & Deploy**:
+2. Update **Build Command** to:
+   ```bash
+   pip install -r backend/requirements.txt && cd backend && alembic upgrade head
+   ```
+   *Note: This runs during image build before the new service instance boots.*
+
+#### Option C: Native Pre-Deploy Command (Render Paid Plans Only)
+> **Note**: Render Pre-Deploy commands are **only available on paid instance types** (Starter, Standard, Pro). If you are on the Render Free Tier, this option is disabled in your dashboard.
+1. In **Render Dashboard $\rightarrow$ Settings $\rightarrow$ Build & Deploy**:
+2. Set **Pre-Deploy Command** to:
    ```bash
    cd backend && alembic upgrade head
    ```
-   *Render will automatically run all pending migrations before routing live traffic to the new build.*
-4. **Disable Startup Auto-Creation**:
-   In **Render Dashboard $\rightarrow$ Environment**:
+
+---
+
+### Final Step: Disable Runtime DDL on Render
+Once the database schema is confirmed up to date and tracked by Alembic:
+1. In **Render Dashboard $\rightarrow$ Environment**:
    Add or update:
    ```
    AUTO_CREATE_TABLES=false
    ```
-5. **Trigger Deploy**:
-   Deploy the service. The pre-deploy command runs migrations, and the backend container starts cleanly without running DDL at boot.
+2. Deploy the service. The backend boots cleanly without running DDL at startup.
