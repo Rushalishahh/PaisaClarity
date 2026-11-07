@@ -15,6 +15,7 @@ if str(backend_dir) not in sys.path:
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Depends, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from sqlalchemy import text
 from sqlalchemy.orm import Session
 from dotenv import load_dotenv
 from slowapi.errors import RateLimitExceeded
@@ -58,9 +59,18 @@ from schemas import InvestmentCreate, InvestmentUpdate
 
 from contextlib import asynccontextmanager
 
+def should_auto_create_tables() -> bool:
+    """Check whether SQLAlchemy Base.metadata.create_all() should run at startup.
+    Defaults to true to preserve existing behaviour. In production with strict
+    Alembic migrations, set AUTO_CREATE_TABLES=false to avoid startup DDL overhead."""
+    val = os.getenv("AUTO_CREATE_TABLES", "true").strip().lower()
+    return val in ("true", "1", "yes")
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    Base.metadata.create_all(bind=engine)
+    if should_auto_create_tables():
+        Base.metadata.create_all(bind=engine)
     yield
 
 app = FastAPI(lifespan=lifespan)
@@ -101,6 +111,30 @@ app.include_router(auth_router, prefix="/auth", tags=["auth"])
 @app.get("/")
 def root():
     return {"message": "Finance Assistant API is running"}
+
+
+@app.get("/health", tags=["health"])
+def health_liveness():
+    """Liveness probe: verifies the web process is running.
+    No database access and no authentication required."""
+    return {"status": "ok"}
+
+
+@app.get("/health/ready", tags=["health"])
+def health_readiness(db: Session = Depends(get_db)):
+    """Readiness probe: checks if the database is reachable by executing SELECT 1.
+    Returns HTTP 200 {'status': 'ok', 'database': 'ok'} if healthy.
+    Returns HTTP 503 {'status': 'degraded', 'database': 'unreachable'} if unreachable.
+    Never exposes exception messages, database URLs, or credentials."""
+    try:
+        db.execute(text("SELECT 1"))
+        return {"status": "ok", "database": "ok"}
+    except Exception:
+        # Deliberately static error response - never leak exception details or URLs
+        return JSONResponse(
+            status_code=503,
+            content={"status": "degraded", "database": "unreachable"},
+        )
 
 
 @app.get("/auth/me")
