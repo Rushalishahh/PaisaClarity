@@ -1,0 +1,107 @@
+name: CI
+
+on:
+  push:
+    branches: [ master, main, phase-* ]
+  pull_request:
+    branches: [ master, main ]
+
+permissions:
+  contents: read
+
+jobs:
+  backend:
+    name: Backend Tests & Coverage
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r backend/requirements.txt
+          pip install -r backend/requirements-dev.txt
+          pip install pytest-cov
+
+      - name: Run Pytest with Coverage
+        working-directory: backend
+        # Runs with no secrets or external database configured (falls back safely to SQLite in memory)
+        run: |
+          pytest --cov=. --cov-report=term-missing -q
+
+  migrations:
+    name: Database Migrations Check
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: ci_test_password
+          POSTGRES_DB: paisaclarity_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install Alembic & DB Drivers
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r backend/requirements.txt
+
+      - name: Run Alembic Upgrade Head on Clean Postgres
+        working-directory: backend
+        env:
+          DATABASE_URL: postgresql://postgres:ci_test_password@localhost:5432/paisaclarity_ci
+        run: |
+          alembic upgrade head
+
+  frontend:
+    name: Frontend Lint & Build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend-react
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node 22 LTS
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: "npm"
+          cache-dependency-path: frontend-react/package-lock.json
+
+      - name: Install npm dependencies
+        run: npm ci
+
+      - name: Run ESLint
+        # Non-blocking because pre-existing lint issues exist in App.jsx and Dashboard.jsx
+        # and hard rules strictly prohibit modifying frontend-react/src in this phase.
+        run: npm run lint
+        continue-on-error: true
+
+      - name: Build Frontend (Vite)
+        # Blocking check to guarantee bundle compiles for production
+        run: npm run build
