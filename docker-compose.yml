@@ -1,0 +1,53 @@
+# Docker Compose setup for local development.
+# NOTE: All passwords and secrets below are DUMMY CREDENTIALS FOR LOCAL DEVELOPMENT ONLY.
+# NEVER use these credentials or configuration in production environments.
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: paisaclarity-postgres
+    restart: unless-stopped
+    environment:
+      # Local-only credentials
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: local_dev_password_only
+      POSTGRES_DB: paisaclarity
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d paisaclarity"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: paisaclarity-backend
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "8000:8000"
+    environment:
+      ENVIRONMENT: development
+      DATABASE_URL: postgresql://postgres:local_dev_password_only@postgres:5432/paisaclarity
+      # Dummy development secret (min 32 characters)
+      SECRET_KEY: local_development_secret_key_not_for_production_min_32_chars
+      ALLOWED_ORIGINS: http://localhost:5173,http://127.0.0.1:5173
+      AUTO_CREATE_TABLES: "true"
+      RATE_LIMIT_ENABLED: "true"
+      RATE_LIMIT_LOGIN: 10/minute
+      RATE_LIMIT_SIGNUP: 5/minute
+      PORT: 8000
+    # Command to run Alembic migrations against the compose database:
+    #   docker compose run --rm backend alembic upgrade head
+
+volumes:
+  postgres_data:
+    driver: local

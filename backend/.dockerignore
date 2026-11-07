@@ -1,0 +1,33 @@
+# Environment and secrets - NEVER copy into Docker image
+.env
+.env.*
+*.env
+
+# Python caches and virtual environments
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+.venv/
+env/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Local databases and logs
+*.db
+*.sqlite*
+finance.db
+*.log
+server.log
+server_err.log
+
+# Private samples and external files
+samples_private/
+node_modules/
+dist/
+.git/
+.gitignore
+
+# Temporary files
+data/_temp_*
