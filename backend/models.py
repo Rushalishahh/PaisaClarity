@@ -1,4 +1,7 @@
-from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, JSON, Numeric, Date
+from sqlalchemy import (
+    Column, Integer, String, DateTime, ForeignKey, JSON, Numeric, Date, Boolean,
+    UniqueConstraint, Index
+)
 from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
 from database import Base
@@ -21,6 +24,11 @@ class User(Base):
 
     # Same pattern for investments - one user, many investments.
     investments = relationship("Investment", back_populates="user")
+
+    # Normalized financial architecture relationships
+    accounts = relationship("FinancialAccount", back_populates="user")
+    custom_categories = relationship("Category", back_populates="user")
+    transactions = relationship("Transaction", back_populates="user")
 
 
 class Statement(Base):
@@ -46,6 +54,9 @@ class Statement(Base):
     # The other side of the relationship above - lets us write
     # `some_statement.user` to get the owning User object.
     user = relationship("User", back_populates="statements")
+
+    # Normalized transactions extracted from this statement
+    transactions = relationship("Transaction", back_populates="statement")
 
 
 class Investment(Base):
@@ -87,3 +98,88 @@ class Investment(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     user = relationship("User", back_populates="investments")
+
+
+class FinancialAccount(Base):
+    __tablename__ = "financial_accounts"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    name = Column(String(100), nullable=False)
+    account_type = Column(String(50), nullable=False, default="savings")  # savings, current, credit_card, investment, wallet, loan, imported
+    currency = Column(String(3), nullable=False, default="INR")
+    opening_balance = Column(Numeric(14, 2), nullable=False, default=0.00)
+    account_number_mask = Column(String(20), nullable=True)  # e.g. "XX1234"
+    institution_name = Column(String(100), nullable=True)
+    is_archived = Column(Boolean, nullable=False, default=False, index=True)
+    is_reconciled = Column(Boolean, nullable=False, default=True)  # False for placeholder/imported accounts
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
+
+    __table_args__ = (
+        UniqueConstraint("user_id", "name", name="uq_financial_accounts_user_name"),
+    )
+
+    user = relationship("User", back_populates="accounts")
+    transactions = relationship("Transaction", back_populates="account")
+
+
+class Category(Base):
+    __tablename__ = "categories"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=True, index=True)  # NULL = system category
+    name = Column(String(100), nullable=False)
+    category_type = Column(String(50), nullable=False, default="expense")  # expense, income, transfer, investment
+    is_system = Column(Boolean, nullable=False, default=False, index=True)
+    icon = Column(String(50), nullable=True)
+    color = Column(String(20), nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+    __table_args__ = (
+        Index("ix_categories_user_name", "user_id", "name"),
+    )
+
+    user = relationship("User", back_populates="custom_categories")
+    transactions = relationship("Transaction", back_populates="category_rel")
+
+
+class Transaction(Base):
+    __tablename__ = "transactions"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    account_id = Column(Integer, ForeignKey("financial_accounts.id", ondelete="SET NULL"), nullable=True, index=True)
+    statement_id = Column(Integer, ForeignKey("statements.id", ondelete="SET NULL"), nullable=True, index=True)
+    source_row_index = Column(Integer, nullable=True)
+
+    date = Column(Date, nullable=False, index=True)
+    value_date = Column(Date, nullable=True)
+    description = Column(String(500), nullable=False)
+    merchant = Column(String(200), nullable=True)
+    amount = Column(Numeric(14, 2), nullable=False)
+    type = Column(String(10), nullable=False)  # "debit" or "credit"
+    classification = Column(String(20), nullable=False, default="expense")  # "expense", "income", "transfer", "investment"
+    category_id = Column(Integer, ForeignKey("categories.id", ondelete="SET NULL"), nullable=True, index=True)
+    category = Column(String(100), nullable=False, default="Other")
+    ref_no = Column(String(100), nullable=True, index=True)
+    balance = Column(Numeric(14, 2), nullable=True)
+    transaction_key = Column(String(255), nullable=False, index=True)
+    transfer_group_id = Column(String(36), nullable=True, index=True)
+    import_metadata = Column(JSON, nullable=True)
+
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
+
+    __table_args__ = (
+        UniqueConstraint("statement_id", "source_row_index", name="uq_statement_source_row"),
+        Index("ix_transactions_user_date", "user_id", "date"),
+        Index("ix_transactions_user_account", "user_id", "account_id"),
+        Index("ix_transactions_user_category", "user_id", "category_id"),
+        Index("ix_transactions_user_key", "user_id", "transaction_key"),
+    )
+
+    user = relationship("User", back_populates="transactions")
+    account = relationship("FinancialAccount", back_populates="transactions")
+    statement = relationship("Statement", back_populates="transactions")
+    category_rel = relationship("Category", back_populates="transactions")
