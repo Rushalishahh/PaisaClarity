@@ -3,7 +3,7 @@ from sqlalchemy import (
     UniqueConstraint, Index
 )
 from sqlalchemy.sql import func
-from sqlalchemy.orm import relationship
+from sqlalchemy.orm import relationship, synonym
 from database import Base
 
 
@@ -110,6 +110,7 @@ class FinancialAccount(Base):
     currency = Column(String(3), nullable=False, default="INR")
     opening_balance = Column(Numeric(14, 2), nullable=False, default=0.00)
     account_number_mask = Column(String(20), nullable=True)  # e.g. "XX1234"
+    masked_identifier = synonym("account_number_mask")
     institution_name = Column(String(100), nullable=True)
     is_archived = Column(Boolean, nullable=False, default=False, index=True)
     is_reconciled = Column(Boolean, nullable=False, default=True)  # False for placeholder/imported accounts

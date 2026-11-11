@@ -50,7 +50,11 @@ from market_data import get_mutual_fund_nav
 from reality_check import compute_reality_check
 
 from auth_routes import router as auth_router
+from account_routes import router as account_router
+from category_routes import router as category_router
+from transaction_routes import router as transaction_router
 from auth_dependency import get_current_user
+from backfill import ingest_statement_transactions
 from database import get_db, Base, engine
 import models
 from models import User, Statement, Investment
@@ -106,6 +110,11 @@ app.add_middleware(
 
 # Auth endpoints: /auth/signup, /auth/login
 app.include_router(auth_router, prefix="/auth", tags=["auth"])
+
+# Account, Category, and Transaction endpoints (Phase 6)
+app.include_router(account_router)
+app.include_router(category_router)
+app.include_router(transaction_router)
 
 
 @app.get("/")
@@ -364,6 +373,7 @@ async def upload_statement(
     file: UploadFile = File(...),
     password: str = Form(None),
     column_mapping: str = Form(None),
+    account_id: int | None = Form(None),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -468,6 +478,9 @@ async def upload_statement(
     db.add(statement_record)
     db.commit()
     db.refresh(statement_record)  # populates statement_record.id and .uploaded_at from the DB
+
+    # Ingest statement transactions into normalized Transaction rows
+    ingest_statement_transactions(db, statement_record, account_id=account_id)
 
     return response
 

@@ -31,6 +31,23 @@ function DashboardIcon({ className = 'w-5 h-5' }) {
   )
 }
 
+function TransactionsIcon({ className = 'w-5 h-5' }) {
+  return (
+    <svg viewBox="0 0 20 20" fill="none" className={className} aria-hidden="true">
+      <path d="M4 6h12M4 10h12M4 14h7" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+      <circle cx="15.5" cy="14" r="2" stroke="currentColor" strokeWidth="1.6" />
+    </svg>
+  )
+}
+
+function AccountsIcon({ className = 'w-5 h-5' }) {
+  return (
+    <svg viewBox="0 0 20 20" fill="none" className={className} aria-hidden="true">
+      <path d="M3 7l7-4 7 4v2H3V7zM4 11v5M8 11v5M12 11v5M16 11v5M2 17h16" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  )
+}
+
 function InvestmentsIcon({ className = 'w-5 h-5' }) {
   return (
     <svg viewBox="0 0 20 20" fill="none" className={className} aria-hidden="true">
@@ -51,6 +68,8 @@ function HistoryIcon({ className = 'w-5 h-5' }) {
 
 const NAV_ITEMS = [
   { to: '/dashboard', label: 'Dashboard', Icon: DashboardIcon },
+  { to: '/transactions', label: 'Transactions', Icon: TransactionsIcon },
+  { to: '/accounts', label: 'Accounts', Icon: AccountsIcon },
   { to: '/investments', label: 'Investments', Icon: InvestmentsIcon },
   { to: '/history', label: 'History', Icon: HistoryIcon },
 ]

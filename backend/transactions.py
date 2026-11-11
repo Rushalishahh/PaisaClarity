@@ -17,10 +17,10 @@ import pandas as pd
 from sqlalchemy.orm import Session
 
 from categorizer import normalize_description
-from models import Statement
+from models import Statement, Transaction
 
 # The canonical transaction contract shared with ingest/normalizer.py.
-CANONICAL_COLUMNS = ["date", "value_date", "description", "ref_no", "amount", "type", "balance"]
+CANONICAL_COLUMNS = ["date", "value_date", "description", "ref_no", "amount", "type", "balance", "category"]
 
 VALID_SCOPES = ("all", "latest")
 
@@ -126,21 +126,18 @@ def _merge_statement_rows(statements):
 
 def get_user_transactions(db: Session, user_id: int, scope: str = "all", statement_id=None):
     """
-    Transactions for one user, merged across their statements.
+    Transactions for one user, sourced from the normalized Transaction table when
+    available, or safely falling back to Statement.result JSON blobs for legacy records.
 
-    scope="all":    every statement, de-duplicated on
-                    (date, normalized description, amount) - overlapping
-                    uploads are NOT double-counted.
+    scope="all":    every active transaction for the user, excluding cross-file
+                    overlapping duplicates. Manual transactions are included.
     scope="latest": only the newest statement's transactions.
 
     statement_id:   restrict to one specific statement (ownership-checked;
                     raises LookupError when missing or not owned).
 
     Raises ValueError for an unknown scope and LookupError for a missing /
-    foreign statement. Returns the canonical DataFrame (uncategorized -
-    callers run add_categories themselves). Statements uploaded before
-    transactions were stored in result have nothing to contribute and are
-    skipped; if nothing contributes, an empty canonical DataFrame comes back.
+    foreign statement. Returns the canonical DataFrame.
     """
     if scope not in VALID_SCOPES:
         raise ValueError(f"scope must be one of {VALID_SCOPES}")
@@ -153,6 +150,29 @@ def get_user_transactions(db: Session, user_id: int, scope: str = "all", stateme
         )
         if statement is None:
             raise LookupError("Statement not found")
+
+        txs = (
+            db.query(Transaction)
+            .filter(Transaction.user_id == user_id, Transaction.statement_id == statement_id)
+            .order_by(Transaction.date.asc(), Transaction.id.asc())
+            .all()
+        )
+        if txs:
+            rows = [
+                {
+                    "date": tx.date.isoformat(),
+                    "value_date": tx.value_date.isoformat() if tx.value_date else None,
+                    "description": tx.description,
+                    "ref_no": tx.ref_no,
+                    "amount": float(tx.amount),
+                    "type": tx.type,
+                    "balance": float(tx.balance) if tx.balance is not None else None,
+                    "category": tx.category,
+                }
+                for tx in txs
+            ]
+            return dataframe_from_rows(rows)
+
         rows = (statement.result or {}).get("transactions") or []
         return dataframe_from_rows(rows)
 
@@ -163,11 +183,61 @@ def get_user_transactions(db: Session, user_id: int, scope: str = "all", stateme
             .order_by(Statement.uploaded_at.desc())
             .first()
         )
-        rows = ((statement.result or {}).get("transactions") or []) if statement else []
+        if not statement:
+            return dataframe_from_rows([])
+
+        txs = (
+            db.query(Transaction)
+            .filter(Transaction.user_id == user_id, Transaction.statement_id == statement.id)
+            .order_by(Transaction.date.asc(), Transaction.id.asc())
+            .all()
+        )
+        if txs:
+            rows = [
+                {
+                    "date": tx.date.isoformat(),
+                    "value_date": tx.value_date.isoformat() if tx.value_date else None,
+                    "description": tx.description,
+                    "ref_no": tx.ref_no,
+                    "amount": float(tx.amount),
+                    "type": tx.type,
+                    "balance": float(tx.balance) if tx.balance is not None else None,
+                    "category": tx.category,
+                }
+                for tx in txs
+            ]
+            return dataframe_from_rows(rows)
+
+        rows = (statement.result or {}).get("transactions") or []
         return dataframe_from_rows(rows)
 
-    # scope == "all": oldest first so the earliest file "owns" each
-    # transaction and later overlapping files drop their duplicates.
+    # scope == "all"
+    tx_count = db.query(Transaction.id).filter(Transaction.user_id == user_id).count()
+    if tx_count > 0:
+        txs = (
+            db.query(Transaction)
+            .filter(Transaction.user_id == user_id)
+            .order_by(Transaction.date.asc(), Transaction.id.asc())
+            .all()
+        )
+        rows = []
+        for tx in txs:
+            meta = tx.import_metadata or {}
+            if meta.get("is_overlap") is True:
+                continue
+            rows.append({
+                "date": tx.date.isoformat(),
+                "value_date": tx.value_date.isoformat() if tx.value_date else None,
+                "description": tx.description,
+                "ref_no": tx.ref_no,
+                "amount": float(tx.amount),
+                "type": tx.type,
+                "balance": float(tx.balance) if tx.balance is not None else None,
+                "category": tx.category,
+            })
+        return dataframe_from_rows(rows)
+
+    # Fallback to Statement.result JSON blobs for legacy records
     statements = (
         db.query(Statement)
         .filter(Statement.user_id == user_id)

@@ -214,9 +214,17 @@ def categorize(description: str) -> str:
 
 
 def add_categories(df):
-    """Add a `category` column to the canonical transactions DataFrame."""
+    """Add or fill `category` column in the canonical transactions DataFrame.
+    Preserves existing non-empty categories (e.g. from user manual corrections or normalized Transaction rows),
+    only applying rule-based categorization to missing or null categories.
+    """
     df = df.copy()
-    df["category"] = df["description"].apply(categorize)
+    if "category" not in df.columns:
+        df["category"] = df["description"].apply(categorize)
+    else:
+        missing_cat = df["category"].isna() | (df["category"] == "")
+        if missing_cat.any():
+            df.loc[missing_cat, "category"] = df.loc[missing_cat, "description"].apply(categorize)
     return df
 
 

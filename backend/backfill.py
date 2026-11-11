@@ -19,7 +19,7 @@ import datetime
 from sqlalchemy.orm import Session
 
 from models import Statement, FinancialAccount, Category, Transaction
-from categorizer import normalize_description
+from categorizer import normalize_description, categorize
 from transactions import transaction_key
 
 
@@ -132,7 +132,9 @@ def backfill_statement_transactions(db: Session, user_id: int | None = None) -> 
             merchant = normalize_description(desc)
 
             # Category resolution
-            cat_label = row.get("category") or "Other"
+            cat_label = row.get("category")
+            if not cat_label or cat_label == "Other":
+                cat_label = categorize(desc)
             cat_obj = categories_map.get(cat_label.lower())
             cat_id = cat_obj.id if cat_obj else None
 
@@ -173,3 +175,154 @@ def backfill_statement_transactions(db: Session, user_id: int | None = None) -> 
         "rows_inserted": rows_inserted,
         "rows_skipped_existing": rows_skipped_existing,
     }
+
+
+def ingest_statement_transactions(
+    db: Session,
+    statement: Statement,
+    account_id: int | None = None,
+) -> dict:
+    """Ingest a single Statement's transactions into the normalized Transaction table.
+
+    1. Reuses or creates the user's placeholder account if account_id is not specified.
+    2. Identifies overlapping duplicates against earlier statements for that user,
+       flagging them with is_overlap=True while keeping intra-file repeats intact.
+    3. Guarantees idempotency via (statement_id, source_row_index).
+    """
+    raw_txs = (statement.result or {}).get("transactions") or []
+    if not raw_txs:
+        return {"rows_inserted": 0, "rows_skipped_existing": 0, "overlap_detected": 0}
+
+    uid = statement.user_id
+
+    # Resolve account
+    if account_id is not None:
+        target_account_id = account_id
+    else:
+        acct = (
+            db.query(FinancialAccount)
+            .filter(
+                FinancialAccount.user_id == uid,
+                FinancialAccount.name == "Imported Statements",
+            )
+            .first()
+        )
+        if not acct:
+            acct = FinancialAccount(
+                user_id=uid,
+                name="Imported Statements",
+                account_type="imported",
+                currency="INR",
+                opening_balance=Decimal("0.00"),
+                is_reconciled=False,
+                is_archived=False,
+            )
+            db.add(acct)
+            db.flush()
+        target_account_id = acct.id
+
+    # Pre-cache system + user categories
+    categories_map = {c.name.lower(): c for c in db.query(Category).all()}
+
+    # Build seen_keys from earlier statements of this user to detect overlap
+    previous_statements = (
+        db.query(Statement)
+        .filter(Statement.user_id == uid, Statement.id != statement.id)
+        .order_by(Statement.uploaded_at.asc())
+        .all()
+    )
+    seen_keys = set()
+    for prev in previous_statements:
+        for r in ((prev.result or {}).get("transactions") or []):
+            try:
+                k = transaction_key(r.get("date"), r.get("description"), r.get("amount"))
+                seen_keys.add(f"{k[0]}_{k[1]}_{k[2]}")
+            except (TypeError, ValueError):
+                continue
+
+    # Query existing source_row_indices for this statement
+    existing_row_indices = {
+        r[0]
+        for r in db.query(Transaction.source_row_index)
+        .filter(Transaction.statement_id == statement.id)
+        .filter(Transaction.source_row_index.isnot(None))
+        .all()
+    }
+
+    local_keys = set()
+    rows_inserted = 0
+    rows_skipped_existing = 0
+    overlap_detected = 0
+
+    for idx, row in enumerate(raw_txs):
+        if idx in existing_row_indices:
+            rows_skipped_existing += 1
+            continue
+
+        date_val = parse_date(row["date"])
+        value_date_val = parse_date(row["value_date"]) if row.get("value_date") else None
+        amount_dec = to_decimal(row["amount"])
+        balance_dec = to_decimal(row["balance"]) if row.get("balance") is not None else None
+        desc = str(row.get("description", ""))
+        tx_type = str(row.get("type", "debit")).lower()
+        ref_no = row.get("ref_no")
+        merchant = normalize_description(desc)
+
+        cat_label = row.get("category")
+        if not cat_label or cat_label == "Other":
+            cat_label = categorize(desc)
+        cat_obj = categories_map.get(cat_label.lower())
+        cat_id = cat_obj.id if cat_obj else None
+        classification = resolve_classification(tx_type, cat_label)
+
+        t_key_tuple = transaction_key(date_val, desc, amount_dec)
+        t_key_str = f"{t_key_tuple[0]}_{t_key_tuple[1]}_{t_key_tuple[2]}"
+
+        # Overlap detection:
+        # Intra-file repeat: kept as real transaction (is_overlap=False)
+        # Cross-file repeat: flagged as is_overlap=True
+        if t_key_str in local_keys:
+            is_overlap = False
+        elif t_key_str in seen_keys:
+            is_overlap = True
+            overlap_detected += 1
+        else:
+            seen_keys.add(t_key_str)
+            is_overlap = False
+        local_keys.add(t_key_str)
+
+        tx = Transaction(
+            user_id=uid,
+            account_id=target_account_id,
+            statement_id=statement.id,
+            source_row_index=idx,
+            date=date_val,
+            value_date=value_date_val,
+            description=desc,
+            merchant=merchant,
+            amount=amount_dec,
+            type=tx_type,
+            classification=classification,
+            category_id=cat_id,
+            category=cat_label,
+            ref_no=str(ref_no) if ref_no is not None else None,
+            balance=balance_dec,
+            transaction_key=t_key_str,
+            transfer_group_id=None,
+            import_metadata={
+                "statement_row_index": idx,
+                "filename": statement.filename,
+                "is_overlap": is_overlap,
+            },
+        )
+        db.add(tx)
+        existing_row_indices.add(idx)
+        rows_inserted += 1
+
+    db.commit()
+    return {
+        "rows_inserted": rows_inserted,
+        "rows_skipped_existing": rows_skipped_existing,
+        "overlap_detected": overlap_detected,
+    }
+

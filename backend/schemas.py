@@ -1,5 +1,8 @@
-from datetime import date
-from pydantic import BaseModel, EmailStr, model_validator, field_validator
+import datetime as dt
+from datetime import datetime
+from decimal import Decimal
+from typing import Optional, List, Dict, Any
+from pydantic import BaseModel, EmailStr, model_validator, field_validator, ConfigDict
 
 class UserSignup(BaseModel):
     email: EmailStr
@@ -79,3 +82,214 @@ class InvestmentUpdate(BaseModel):
     next_due_date: date | None = None
     maturity_date: date | None = None
     maturity_value: float | None = None
+
+
+# ---------------------------------------------------------------------------
+# Account Schemas (Phase 6)
+# ---------------------------------------------------------------------------
+
+class AccountCreate(BaseModel):
+    name: str
+    account_type: str = "savings"  # savings, checking, credit_card, wallet, investment, imported, other
+    currency: str = "INR"
+    opening_balance: Decimal = Decimal("0.00")
+    masked_identifier: str | None = None
+
+    @field_validator("name")
+    @classmethod
+    def validate_name(cls, v: str) -> str:
+        s = v.strip()
+        if not s:
+            raise ValueError("Account name cannot be empty")
+        return s
+
+
+class AccountUpdate(BaseModel):
+    name: str | None = None
+    account_type: str | None = None
+    currency: str | None = None
+    opening_balance: Decimal | None = None
+    masked_identifier: str | None = None
+
+
+class AccountReconcile(BaseModel):
+    """Workflow to convert an unreconciled imported account into a verified account
+    or merge its transactions into an existing verified account.
+    """
+    name: str | None = None
+    account_type: str = "savings"
+    masked_identifier: str | None = None
+    merge_into_account_id: int | None = None
+
+
+class AccountResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    user_id: int
+    name: str
+    account_type: str
+    currency: str
+    opening_balance: Decimal
+    calculated_balance: Decimal | None = None
+    masked_identifier: str | None = None
+    is_archived: bool
+    is_reconciled: bool
+    transaction_count: int = 0
+    created_at: datetime
+    updated_at: datetime
+
+
+# ---------------------------------------------------------------------------
+# Category Schemas (Phase 6)
+# ---------------------------------------------------------------------------
+
+class CategoryCreate(BaseModel):
+    name: str
+    category_type: str = "expense"  # expense, income, transfer, investment
+    icon: str | None = None
+    color: str | None = None
+
+    @field_validator("name")
+    @classmethod
+    def validate_name(cls, v: str) -> str:
+        s = v.strip()
+        if not s:
+            raise ValueError("Category name cannot be empty")
+        return s
+
+    @field_validator("category_type")
+    @classmethod
+    def validate_type(cls, v: str) -> str:
+        valid_types = ("expense", "income", "transfer", "investment")
+        if v.lower() not in valid_types:
+            raise ValueError(f"category_type must be one of {valid_types}")
+        return v.lower()
+
+
+class CategoryUpdate(BaseModel):
+    name: str | None = None
+    category_type: str | None = None
+    icon: str | None = None
+    color: str | None = None
+
+
+class CategoryResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    user_id: int | None
+    name: str
+    category_type: str
+    is_system: bool
+    icon: str | None = None
+    color: str | None = None
+    created_at: datetime
+
+
+# ---------------------------------------------------------------------------
+# Transaction Schemas (Phase 6)
+# ---------------------------------------------------------------------------
+
+class TransactionCreate(BaseModel):
+    account_id: int | None = None
+    date: dt.date
+    value_date: dt.date | None = None
+    description: str
+    merchant: str | None = None
+    amount: Decimal
+    type: str  # debit or credit
+    classification: str | None = None  # expense, income, transfer, investment
+    category_id: int | None = None
+    category: str | None = None
+    ref_no: str | None = None
+
+    @field_validator("amount")
+    @classmethod
+    def validate_amount(cls, v: Decimal) -> Decimal:
+        if v <= Decimal("0.00"):
+            raise ValueError("Amount must be greater than zero")
+        return v
+
+    @field_validator("type")
+    @classmethod
+    def validate_type(cls, v: str) -> str:
+        v_lower = v.lower().strip()
+        if v_lower not in ("debit", "credit"):
+            raise ValueError("Type must be 'debit' or 'credit'")
+        return v_lower
+
+
+class TransferCreate(BaseModel):
+    from_account_id: int
+    to_account_id: int
+    date: dt.date
+    amount: Decimal
+    description: str | None = "Account Transfer"
+    ref_no: str | None = None
+
+    @field_validator("amount")
+    @classmethod
+    def validate_amount(cls, v: Decimal) -> Decimal:
+        if v <= Decimal("0.00"):
+            raise ValueError("Amount must be greater than zero")
+        return v
+
+    @model_validator(mode="after")
+    def validate_different_accounts(self):
+        if self.from_account_id == self.to_account_id:
+            raise ValueError("Source and destination accounts must be different")
+        return self
+
+
+class TransactionUpdate(BaseModel):
+    account_id: int | None = None
+    date: dt.date | None = None
+    value_date: dt.date | None = None
+    description: str | None = None
+    merchant: str | None = None
+    amount: Decimal | None = None
+    type: str | None = None
+    classification: str | None = None
+    category_id: int | None = None
+    category: str | None = None
+    ref_no: str | None = None
+
+
+class CategoryCorrection(BaseModel):
+    category_id: int | None = None
+    category_name: str | None = None
+
+
+class TransactionResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    user_id: int
+    account_id: int | None
+    statement_id: int | None
+    source_row_index: int | None
+    date: dt.date
+    value_date: dt.date | None
+    description: str
+    merchant: str | None
+    amount: Decimal
+    type: str
+    classification: str
+    category_id: int | None
+    category: str
+    ref_no: str | None
+    balance: Decimal | None
+    transaction_key: str | None
+    transfer_group_id: str | None
+    import_metadata: dict | None
+    created_at: datetime
+    updated_at: datetime
+
+
+class PaginatedTransactionsResponse(BaseModel):
+    items: list[TransactionResponse]
+    total: int
+    page: int
+    page_size: int
+    pages: int
