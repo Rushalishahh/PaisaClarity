@@ -60,3 +60,4 @@ The benchmark was executed via `backend/eval_forecasting.py` over 24 synthetic m
 The `get_spending_forecast` tool and `MockLLMProvider` synthesize predictions in structured, explainable natural language:
 
 > *"Forecast for March 2026: Projected month-end total is ₹90,725.00 (expected range: ₹88,450.00 - ₹93,000.00). This accounts for ₹59,200.00 spent MTD, ₹10,000.00 in confirmed recurring commitments, and ₹21,525.00 in projected discretionary burn. Projection derived via Hybrid Run-Rate with Outlier-Resistant Discretionary Burn + Confirmed Recurring Bills."*
+

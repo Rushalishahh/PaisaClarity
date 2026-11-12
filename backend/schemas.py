@@ -259,6 +259,7 @@ class TransactionUpdate(BaseModel):
 class CategoryCorrection(BaseModel):
     category_id: int | None = None
     category_name: str | None = None
+    apply_to_future: bool = False
 
 
 class TransactionResponse(BaseModel):

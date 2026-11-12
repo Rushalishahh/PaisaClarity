@@ -85,3 +85,4 @@ Adversarial descriptions test whether substring false positives are avoided:
 2. For each transaction row, `categorize_with_explanation(description, user_rules)` is called.
 3. If an existing transaction already has `import_metadata["is_user_override"] == True`, the user's category is strictly preserved and not overwritten.
 4. Metadata (`confidence`, `confidence_level`, `method`, `matched_rule`) is stored in `Transaction.import_metadata` for UI display and AI Copilot explainability.
+

@@ -59,6 +59,7 @@ export default function Transactions() {
 
   // Quick Category Form
   const [newCategoryId, setNewCategoryId] = useState('')
+  const [applyToFuture, setApplyToFuture] = useState(false)
 
   // Fetch Lookups (Accounts and Categories)
   useEffect(() => {
@@ -266,6 +267,7 @@ export default function Transactions() {
   function handleOpenCategoryCorrection(tx) {
     setCategoryCorrectionTx(tx)
     setNewCategoryId(tx.category_id ? String(tx.category_id) : '')
+    setApplyToFuture(false)
     setActionError(null)
   }
 
@@ -279,6 +281,7 @@ export default function Transactions() {
         method: 'PATCH',
         body: {
           category_id: newCategoryId ? Number(newCategoryId) : null,
+          apply_to_future: applyToFuture,
         },
       })
       setCategoryCorrectionTx(null)
@@ -527,14 +530,26 @@ export default function Transactions() {
                           {tx.account_id ? accountMap[tx.account_id] || 'Account' : '—'}
                         </td>
                         <td className="px-4 py-3 whitespace-nowrap">
-                          <button
-                            onClick={() => handleOpenCategoryCorrection(tx)}
-                            title="Click to change category"
-                            className="bg-navy border border-gray-700 hover:border-mint text-gray-300 hover:text-white px-2 py-0.5 rounded-lg text-xs transition-colors flex items-center gap-1.5"
-                          >
-                            <span>{tx.category}</span>
-                            <span className="text-[10px] text-gray-500">✎</span>
-                          </button>
+                          <div className="flex items-center gap-1.5">
+                            <button
+                              onClick={() => handleOpenCategoryCorrection(tx)}
+                              title="Click to change category"
+                              className="bg-navy border border-gray-700 hover:border-mint text-gray-300 hover:text-white px-2 py-0.5 rounded-lg text-xs transition-colors flex items-center gap-1.5"
+                            >
+                              <span>{tx.category}</span>
+                              <span className="text-[10px] text-gray-500">✎</span>
+                            </button>
+                            {tx.import_metadata?.is_user_override && (
+                              <span className="bg-mint/15 text-mint border border-mint/30 text-[9px] px-1 py-0.5 rounded font-medium" title="Manually overridden by user">
+                                User
+                              </span>
+                            )}
+                            {tx.import_metadata?.categorization_method === 'user_rule' && (
+                              <span className="bg-cyan-500/15 text-cyan-300 border border-cyan-500/30 text-[9px] px-1 py-0.5 rounded font-medium" title="Categorized by user rule">
+                                Rule
+                              </span>
+                            )}
+                          </div>
                         </td>
                         <td className={`px-4 py-3 whitespace-nowrap text-right font-semibold font-mono text-sm ${
                           isCredit ? 'text-mint' : 'text-white'
@@ -984,6 +999,24 @@ export default function Transactions() {
                     </option>
                   ))}
                 </select>
+              </div>
+
+              {/* Explicit choice: apply only to this txn vs future matching imports */}
+              <div className="pt-1">
+                <label className="flex items-start gap-2.5 cursor-pointer text-xs text-gray-300">
+                  <input
+                    type="checkbox"
+                    checked={applyToFuture}
+                    onChange={(e) => setApplyToFuture(e.target.checked)}
+                    className="mt-0.5 rounded border-gray-700 bg-navy text-mint focus:ring-mint focus:ring-offset-navy"
+                  />
+                  <span>
+                    <b className="text-white block font-medium">Apply to future imports</b>
+                    <span className="text-[11px] text-gray-400 block mt-0.5">
+                      Create a persistent rule for "{categoryCorrectionTx.merchant || categoryCorrectionTx.description.slice(0, 24)}"
+                    </span>
+                  </span>
+                </label>
               </div>
 
               <div className="flex justify-end gap-3 pt-2 border-t border-gray-800">

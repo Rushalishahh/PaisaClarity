@@ -300,3 +300,4 @@ if __name__ == "__main__":
     print(f"Predicted Total:                           ₹{s['predicted_total']:,.2f}")
     print(f"Uncertainty Range:                         {s['uncertainty_range']}")
     print(f"Explanation:                               {s['explanation']}")
+

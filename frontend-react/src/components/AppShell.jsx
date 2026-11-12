@@ -111,6 +111,15 @@ function CopilotIcon({ className = 'w-5 h-5' }) {
   )
 }
 
+function ReportsIcon({ className = 'w-5 h-5' }) {
+  return (
+    <svg viewBox="0 0 20 20" fill="none" className={className} aria-hidden="true">
+      <path d="M5 3h10a2 2 0 012 2v10a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2z" stroke="currentColor" strokeWidth="1.6" />
+      <path d="M6 13v-3M10 13V7M14 13v-5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+    </svg>
+  )
+}
+
 const NAV_ITEMS = [
   { to: '/dashboard', label: 'Dashboard', Icon: DashboardIcon },
   { to: '/copilot', label: 'AI Copilot', Icon: CopilotIcon },
@@ -118,6 +127,7 @@ const NAV_ITEMS = [
   { to: '/accounts', label: 'Accounts', Icon: AccountsIcon },
   { to: '/budgets', label: 'Budgets', Icon: BudgetsIcon },
   { to: '/savings-goals', label: 'Savings Goals', Icon: GoalsIcon },
+  { to: '/reports', label: 'Reports', Icon: ReportsIcon },
   { to: '/recurring', label: 'Subscriptions', Icon: RecurringIcon },
   { to: '/alerts', label: 'Alerts', Icon: AlertsIcon },
   { to: '/investments', label: 'Investments', Icon: InvestmentsIcon },

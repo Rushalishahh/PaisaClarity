@@ -455,31 +455,33 @@ def correct_transaction_category(
     meta["categorization_method"] = "user_override"
     tx.import_metadata = meta
 
-    # Persist as a user categorization rule for future imports
-    pattern = (tx.merchant or normalize_description(tx.description)).strip().upper()
-    if pattern and len(pattern) >= 2:
-        rule = (
-            db.query(CategorizationRule)
-            .filter(
-                CategorizationRule.user_id == current_user.id,
-                CategorizationRule.pattern == pattern,
+    # Persist as a user categorization rule for future imports only if explicitly chosen
+    if correction.apply_to_future:
+        pattern = (tx.merchant or normalize_description(tx.description)).strip().upper()
+        if pattern and len(pattern) >= 2:
+            rule = (
+                db.query(CategorizationRule)
+                .filter(
+                    CategorizationRule.user_id == current_user.id,
+                    CategorizationRule.pattern == pattern,
+                )
+                .first()
             )
-            .first()
-        )
-        if rule:
-            rule.category_name = cat_name
-            rule.category_id = cat_id
-            rule.is_active = True
-        else:
-            rule = CategorizationRule(
-                user_id=current_user.id,
-                pattern=pattern,
-                category_id=cat_id,
-                category_name=cat_name,
-                match_type="contains",
-                priority=15,
-            )
-            db.add(rule)
+            if rule:
+                rule.category_name = cat_name
+                rule.category_id = cat_id
+                rule.is_active = True
+            else:
+                rule = CategorizationRule(
+                    user_id=current_user.id,
+                    pattern=pattern,
+                    category_id=cat_id,
+                    category_name=cat_name,
+                    match_type="contains",
+                    priority=15,
+                    is_active=True,
+                )
+                db.add(rule)
 
     db.commit()
     db.refresh(tx)

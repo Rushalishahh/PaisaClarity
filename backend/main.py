@@ -59,6 +59,7 @@ from cashflow_routes import router as cashflow_router
 from recurring_routes import router as recurring_router
 from alert_routes import router as alert_router
 from ai_routes import router as ai_router
+from reporting_routes import router as reporting_router
 from auth_dependency import get_current_user
 from backfill import ingest_statement_transactions
 from database import get_db, Base, engine
@@ -133,6 +134,9 @@ app.include_router(alert_router)
 
 # Secure AI Financial Copilot (Phase 9)
 app.include_router(ai_router)
+
+# Financial Reporting and Exports (Phase 11)
+app.include_router(reporting_router)
 
 
 @app.get("/")

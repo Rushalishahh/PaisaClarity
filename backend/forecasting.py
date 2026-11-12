@@ -149,3 +149,4 @@ def forecast_hybrid_month_end(
         confidence_level=conf,
         historical_months_used=hist_len,
     )
+

@@ -343,6 +343,35 @@ export default function AiCopilot() {
 
                       <div className="whitespace-pre-wrap">{m.content}</div>
 
+                      {/* Highlighted Forecast Transparency Card if spending forecast tool was invoked */}
+                      {!isUser && m.tool_calls && m.tool_calls.some((t) => t.tool_name === 'get_spending_forecast' && t.result) && (
+                        <div className="mt-3 p-3 rounded-xl bg-slate-900/90 border border-slate-700/80 text-[11px] space-y-1.5">
+                          <div className="flex items-center justify-between text-emerald-400 font-semibold">
+                            <span>📊 Spending Forecast Breakdown</span>
+                            <span className="text-[10px] text-slate-400 font-mono">Hybrid Run-Rate</span>
+                          </div>
+                          {m.tool_calls.filter((t) => t.tool_name === 'get_spending_forecast').map((t, idx) => {
+                            const res = t.result || {}
+                            const unc = res.uncertainty_range
+                            return (
+                              <div key={idx} className="space-y-1">
+                                {unc && (
+                                  <div className="flex justify-between text-slate-300">
+                                    <span>Expected Range:</span>
+                                    <span className="font-mono text-emerald-300 font-medium">
+                                      ₹{Number(unc.lower_bound || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })} – ₹{Number(unc.upper_bound || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                                    </span>
+                                  </div>
+                                )}
+                                <p className="text-[10px] text-slate-400 pt-1 border-t border-slate-800 leading-relaxed">
+                                  <b>Methodology & Assumptions:</b> Historical pace uses IQR outlier filtering to exclude one-off spikes; confirmed recurring commitments are added as fixed dues. Uncertainty intervals reflect estimated volatility and are not statistically calibrated.
+                                </p>
+                              </div>
+                            )
+                          })}
+                        </div>
+                      )}
+
                       <div className={`mt-1.5 text-[10px] text-right ${isUser ? 'text-emerald-200' : 'text-slate-500'}`}>
                         {new Date(m.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                       </div>

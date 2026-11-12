@@ -12,6 +12,7 @@ import Alerts from './pages/Alerts'
 import AiCopilot from './pages/AiCopilot'
 import History from './pages/History'
 import Investments from './pages/Investments'
+import Reports from './pages/Reports'
 import ProtectedRoute from './components/ProtectedRoute'
 
 function App() {
@@ -90,6 +91,14 @@ function App() {
           element={
             <ProtectedRoute>
               <History />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/reports"
+          element={
+            <ProtectedRoute>
+              <Reports />
             </ProtectedRoute>
           }
         />

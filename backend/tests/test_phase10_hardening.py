@@ -310,7 +310,7 @@ def test_manual_transaction_correction_persists_rule_and_explains(client, db_ses
     patch_resp = client.patch(
         f"/transactions/{tx.id}/category",
         headers=headers,
-        json={"category_name": "Food & Dining"},
+        json={"category_name": "Food & Dining", "apply_to_future": True},
     )
     assert patch_resp.status_code == 200
     assert patch_resp.json()["category"] == "Food & Dining"
