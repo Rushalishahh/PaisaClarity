@@ -21,7 +21,31 @@ savings rate, anomalies, budgets and the health score must never count
 Income, Investments or self-Transfers as expenses.
 """
 
+from dataclasses import dataclass
 import re
+from typing import Any, Dict, List, Optional, Tuple
+
+@dataclass
+class CategorizationDecision:
+    """Detailed explainable categorization decision with confidence calibration."""
+    category: str
+    confidence: float
+    confidence_level: str  # "high", "medium", "low"
+    method: str            # "user_override", "user_rule", "exact_merchant", "rule_pattern", "rail_fallback", "unknown_fallback"
+    matched_rule: str
+    merchant: str
+    is_unknown: bool = False
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "category": self.category,
+            "confidence": self.confidence,
+            "confidence_level": self.confidence_level,
+            "method": self.method,
+            "matched_rule": self.matched_rule,
+            "merchant": self.merchant,
+            "is_unknown": self.is_unknown,
+        }
 
 # --- Single source of truth for rule-based categories -------------------
 # Ordered: first match wins, so more specific rules go first (SIP/MUTUAL
@@ -158,18 +182,34 @@ _RAIL_RE = re.compile(
 _TOKEN_RE = re.compile(r"[A-Z]+")
 
 
+# Location and gateway tokens to strip for cleaner merchant identification
+_LOCATION_TOKENS = {
+    "MUMBAI", "BOMBAY", "BANGALORE", "BENGALURU", "DELHI", "NEWDELHI", "HYDERABAD",
+    "CHENNAI", "MADRAS", "KOLKATA", "CALCUTTA", "PUNE", "AHMEDABAD", "GURGAON",
+    "GURUGRAM", "NOIDA", "JAIPUR", "IN", "IND",
+}
+
+_GATEWAY_TOKENS = {
+    "PAYU", "RAZORPAY", "BILLDESK", "CASHFREE", "CCAVENUE", "PAYTMQR", "BHARATPE",
+    "PHONEPEQR", "GOOGLEPAY", "GPAY", "OKAXIS", "OKHDFC", "OKSBI", "OKICICI",
+}
+
+
 def normalize_description(description: str) -> str:
     """
-    Uppercase, strip digits/IDs and banking-rail tokens so
-    'UPI/321456789012/Zomato/okaxis/payment' -> 'ZOMATO OKAXIS PAYMENT'
-    and rules can match plain merchant words.
+    Uppercase, strip digits/IDs, banking-rail tokens, payment gateways, and location suffixes so
+    'UPI/321456789012/Zomato/okaxis/payment' -> 'ZOMATO PAYMENT'
+    and rules can match clean merchant words.
     """
     text = str(description or "").upper()
     text = _RAIL_RE.sub(" ", text)
     text = re.sub(r"\d+", " ", text)          # reference numbers
     text = re.sub(r"[^A-Z ]", " ", text)      # punctuation
     words = _TOKEN_RE.findall(text)
-    words = [w for w in words if w not in _RAIL_TOKENS and len(w) > 1]
+    words = [
+        w for w in words
+        if w not in _RAIL_TOKENS and w not in _LOCATION_TOKENS and w not in _GATEWAY_TOKENS and len(w) > 1
+    ]
     return " ".join(words)
 
 
@@ -195,22 +235,103 @@ def _compile_category_patterns(rules: dict[str, list[str]]) -> list[tuple[str, r
 _COMPILED_PATTERNS = _compile_category_patterns(CATEGORY_RULES)
 
 
-def categorize(description: str) -> str:
+def categorize_with_explanation(
+    description: str,
+    user_rules: Optional[List[Any]] = None,
+) -> CategorizationDecision:
+    """Classify narration with confidence score and decision explanation."""
+    norm = normalize_description(description)
+    raw_upper = str(description or "").upper()
+
+    # 1. User-defined custom rules (Highest priority)
+    if user_rules:
+        sorted_user_rules = sorted(
+            [r for r in user_rules if getattr(r, "is_active", True)],
+            key=lambda x: getattr(x, "priority", 10),
+            reverse=True,
+        )
+        for r in sorted_user_rules:
+            pattern = getattr(r, "pattern", "").strip().upper()
+            m_type = getattr(r, "match_type", "contains").lower()
+            cat = getattr(r, "category_name", "")
+            if not pattern or not cat:
+                continue
+
+            matched = False
+            if m_type == "exact":
+                matched = (norm == pattern or raw_upper == pattern)
+            elif m_type == "regex":
+                try:
+                    matched = bool(re.search(pattern, norm) or re.search(pattern, raw_upper))
+                except re.error:
+                    matched = False
+            else:  # contains default
+                matched = (pattern in norm or pattern in raw_upper)
+
+            if matched:
+                return CategorizationDecision(
+                    category=cat,
+                    confidence=1.0,
+                    confidence_level="high",
+                    method="user_rule",
+                    matched_rule=f"User rule '{pattern}'",
+                    merchant=norm or pattern,
+                    is_unknown=False,
+                )
+
+    # 2. System rule-based regex patterns
+    if norm:
+        for category, pattern in _COMPILED_PATTERNS:
+            match = pattern.search(norm)
+            if match:
+                kw = match.group(0)
+                return CategorizationDecision(
+                    category=category,
+                    confidence=0.95,
+                    confidence_level="high",
+                    method="exact_merchant",
+                    matched_rule=f"System pattern matched '{kw}'",
+                    merchant=norm,
+                    is_unknown=False,
+                )
+
+    # 3. Rail-token fallbacks if description was stripped
+    if "ATM" in raw_upper:
+        return CategorizationDecision(
+            category="Cash Withdrawal",
+            confidence=0.85,
+            confidence_level="high",
+            method="rail_fallback",
+            matched_rule="Banking rail token 'ATM'",
+            merchant="ATM",
+            is_unknown=False,
+        )
+    if "BBPS" in raw_upper or "BPAY" in raw_upper:
+        return CategorizationDecision(
+            category="Bills",
+            confidence=0.85,
+            confidence_level="high",
+            method="rail_fallback",
+            matched_rule="Banking rail token 'BBPS/BPAY'",
+            merchant="Utility Bill",
+            is_unknown=False,
+        )
+
+    # 4. Unknown merchant fallback
+    return CategorizationDecision(
+        category=FALLBACK_CATEGORY,
+        confidence=0.20,
+        confidence_level="low",
+        method="unknown_fallback",
+        matched_rule="No matching user rule or system merchant pattern",
+        merchant=norm or "Unknown",
+        is_unknown=True,
+    )
+
+
+def categorize(description: str, user_rules: Optional[List[Any]] = None) -> str:
     """Return a category for a narration, or FALLBACK_CATEGORY ('Other')."""
-    normalized = normalize_description(description)
-    if not normalized:
-        raw_upper = str(description or "").upper()
-        if "ATM" in raw_upper:
-            return "Cash Withdrawal"
-        if "BBPS" in raw_upper or "BPAY" in raw_upper:
-            return "Bills"
-        return FALLBACK_CATEGORY
-
-    for category, pattern in _COMPILED_PATTERNS:
-        if pattern.search(normalized):
-            return category
-
-    return FALLBACK_CATEGORY
+    return categorize_with_explanation(description, user_rules).category
 
 
 def add_categories(df):

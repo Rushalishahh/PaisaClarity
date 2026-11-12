@@ -109,3 +109,4 @@ To support persistent conversations while ensuring privacy:
    - Provider request timeout: 15 seconds.
 4. **Financial Advice Disclaimer**:
    - All projection calculations and insights append an educational disclaimer stating that numbers reflect historical statement data and estimates, not certified financial advice.
+

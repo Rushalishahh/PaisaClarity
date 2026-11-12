@@ -72,11 +72,18 @@ class MockLLMProvider(BaseLLMProvider):
             prompt = str(last_msg.get("content", "")).lower()
 
             # Rule-based intent mapping for deterministic test coverage
-            if "reach" in prompt or "projection" in prompt or ("calculat" in prompt and "sav" in prompt):
+            if "reach" in prompt or "projection" in prompt or ("calculat" in prompt and "sav" in prompt) or "how long will it take" in prompt or "how long to save" in prompt:
                 # Extract numbers if present
                 numbers = [float(s) for s in re.findall(r"\b\d+(?:\.\d+)?\b", prompt)]
-                g_amt = numbers[0] if len(numbers) > 0 else 50000.0
-                m_amt = numbers[1] if len(numbers) > 1 else 5000.0
+                if len(numbers) >= 2:
+                    g_amt = max(numbers[0], numbers[1])
+                    m_amt = min(numbers[0], numbers[1])
+                elif len(numbers) == 1:
+                    g_amt = numbers[0]
+                    m_amt = 5000.0
+                else:
+                    g_amt = 50000.0
+                    m_amt = 5000.0
                 return AIProviderResponse(
                     tool_calls=[
                         ToolCall(
@@ -143,7 +150,7 @@ class MockLLMProvider(BaseLLMProvider):
                     tool_calls=[ToolCall(call_id="call_invest", name="get_investment_summary", arguments={})]
                 )
 
-            if "forecast" in prompt or "predict" in prompt:
+            if "forecast" in prompt or "predict" in prompt or "estimate" in prompt or "project" in prompt or "end of this month" in prompt or "end of month" in prompt or "month end" in prompt:
                 return AIProviderResponse(
                     tool_calls=[ToolCall(call_id="call_forecast", name="get_spending_forecast", arguments={})]
                 )
@@ -236,11 +243,23 @@ class MockLLMProvider(BaseLLMProvider):
             )
 
         if tool_name == "get_spending_forecast":
-            proj = data.get("projected_month_end_total", 0.0)
-            mtd = data.get("month_to_date_spend", 0.0)
-            daily = data.get("daily_average_spend", 0.0)
+            proj = data.get("predicted_total") or data.get("projected_month_end_total", 0.0)
+            mtd = data.get("actual_mtd") or data.get("month_to_date_spend", 0.0)
+            recurring = data.get("confirmed_recurring") or data.get("upcoming_recurring_bills_total", 0.0)
+            discretionary = data.get("projected_discretionary", 0.0)
+            period = data.get("forecast_period", "this month")
+            unc = data.get("uncertainty_range")
+            range_txt = ""
+            if unc:
+                range_txt = f" (expected range: ₹{unc['lower_bound']:,.2f} - ₹{unc['upper_bound']:,.2f})"
+            method = data.get("method_used", "")
+            method_txt = f" Projection derived via {method}." if method else ""
             return AIProviderResponse(
-                content=f"Based on your month-to-date spending of ₹{mtd:,.2f} (averaging ₹{daily:,.2f}/day), your projected month-end total expense is approximately ₹{proj:,.2f}."
+                content=(
+                    f"Forecast for {period}: Projected month-end total is ₹{proj:,.2f}{range_txt}. "
+                    f"This accounts for ₹{mtd:,.2f} spent MTD, ₹{recurring:,.2f} in confirmed recurring commitments, "
+                    f"and ₹{discretionary:,.2f} in projected discretionary burn.{method_txt}"
+                )
             )
 
         if tool_name == "calculate_savings_projection":
@@ -259,9 +278,9 @@ class MockLLMProvider(BaseLLMProvider):
 class GeminiProvider(BaseLLMProvider):
     """Google Gemini API Provider using direct REST endpoints."""
 
-    def __init__(self, api_key: str, model_name: str = "gemini-2.0-flash"):
+    def __init__(self, api_key: str, model_name: Optional[str] = None):
         self.api_key = api_key
-        self.model_name = model_name
+        self.model_name = model_name or os.environ.get("GEMINI_MODEL", "gemini-2.0-flash")
         self.base_url = f"https://generativelanguage.googleapis.com/v1beta/models/{self.model_name}:generateContent"
 
     def generate_chat_turn(
@@ -272,9 +291,24 @@ class GeminiProvider(BaseLLMProvider):
     ) -> AIProviderResponse:
         contents = []
         for m in messages:
-            role = "user" if m.get("role") in ("user", "system") else "model"
+            role = m.get("role", "user")
             content = m.get("content") or ""
-            contents.append({"role": role, "parts": [{"text": str(content)}]})
+            if role == "tool":
+                # Gemini tool response representation
+                tool_name = m.get("name", "tool")
+                try:
+                    res_obj = json.loads(content) if isinstance(content, str) else content
+                except Exception:
+                    res_obj = {"result": str(content)}
+                contents.append({
+                    "role": "user",
+                    "parts": [{"functionResponse": {"name": tool_name, "response": {"name": tool_name, "content": res_obj}}}],
+                })
+            elif role == "assistant":
+                # Check if it was a tool call message or plain text
+                contents.append({"role": "model", "parts": [{"text": str(content)}]})
+            else:
+                contents.append({"role": "user", "parts": [{"text": str(content)}]})
 
         # Format Gemini tool declarations
         function_declarations = []
@@ -291,14 +325,30 @@ class GeminiProvider(BaseLLMProvider):
             "tools": [{"functionDeclarations": function_declarations}] if function_declarations else [],
         }
 
-        with httpx.Client(timeout=30.0) as client:
-            resp = client.post(
-                f"{self.base_url}?key={self.api_key}",
-                json=payload,
-                headers={"Content-Type": "application/json"},
-            )
-            resp.raise_for_status()
-            res_json = resp.json()
+        # Securely pass API key via header rather than exposing in URL query params
+        headers = {
+            "Content-Type": "application/json",
+            "x-goog-api-key": self.api_key,
+        }
+
+        # Safe request with retry on transient network errors
+        attempts = 2
+        last_exc = None
+        for attempt in range(attempts):
+            try:
+                with httpx.Client(timeout=15.0) as client:
+                    resp = client.post(
+                        self.base_url,
+                        json=payload,
+                        headers=headers,
+                    )
+                    resp.raise_for_status()
+                    res_json = resp.json()
+                    break
+            except Exception as exc:
+                last_exc = exc
+                if attempt == attempts - 1:
+                    raise RuntimeError(f"Gemini API request failed after {attempts} attempts: {str(exc)}") from exc
 
         candidates = res_json.get("candidates", [])
         if not candidates:
@@ -332,10 +382,10 @@ class GeminiProvider(BaseLLMProvider):
 class OpenAICompatibleProvider(BaseLLMProvider):
     """OpenAI-compatible Chat Completions provider."""
 
-    def __init__(self, api_key: str, base_url: str = "https://api.openai.com/v1", model: str = "gpt-4o-mini"):
+    def __init__(self, api_key: str, base_url: Optional[str] = None, model: Optional[str] = None):
         self.api_key = api_key
-        self.base_url = base_url.rstrip("/")
-        self.model = model
+        self.base_url = (base_url or os.environ.get("OPENAI_BASE_URL", "https://api.openai.com/v1")).rstrip("/")
+        self.model = model or os.environ.get("OPENAI_MODEL", "gpt-4o-mini")
 
     def generate_chat_turn(
         self,
@@ -344,7 +394,20 @@ class OpenAICompatibleProvider(BaseLLMProvider):
         system_prompt: str,
     ) -> AIProviderResponse:
         openai_tools = [{"type": "function", "function": t} for t in tools_schema]
-        formatted_msgs = [{"role": "system", "content": system_prompt}] + messages
+        formatted_msgs = [{"role": "system", "content": system_prompt}]
+        for m in messages:
+            role = m.get("role", "user")
+            if role == "tool":
+                formatted_msgs.append({
+                    "role": "tool",
+                    "tool_call_id": m.get("tool_call_id") or f"call_{m.get('name', 'tool')}",
+                    "content": str(m.get("content", "")),
+                })
+            else:
+                formatted_msgs.append({
+                    "role": role,
+                    "content": str(m.get("content", "")),
+                })
 
         payload: Dict[str, Any] = {
             "model": self.model,
@@ -353,17 +416,28 @@ class OpenAICompatibleProvider(BaseLLMProvider):
         if openai_tools:
             payload["tools"] = openai_tools
 
-        with httpx.Client(timeout=30.0) as client:
-            resp = client.post(
-                f"{self.base_url}/chat/completions",
-                json=payload,
-                headers={
-                    "Authorization": f"Bearer {self.api_key}",
-                    "Content-Type": "application/json",
-                },
-            )
-            resp.raise_for_status()
-            res_json = resp.json()
+        headers = {
+            "Authorization": f"Bearer {self.api_key}",
+            "Content-Type": "application/json",
+        }
+
+        attempts = 2
+        last_exc = None
+        for attempt in range(attempts):
+            try:
+                with httpx.Client(timeout=15.0) as client:
+                    resp = client.post(
+                        f"{self.base_url}/chat/completions",
+                        json=payload,
+                        headers=headers,
+                    )
+                    resp.raise_for_status()
+                    res_json = resp.json()
+                    break
+            except Exception as exc:
+                last_exc = exc
+                if attempt == attempts - 1:
+                    raise RuntimeError(f"OpenAI API request failed after {attempts} attempts: {str(exc)}") from exc
 
         choice = res_json.get("choices", [{}])[0].get("message", {})
         content = choice.get("content")
@@ -374,7 +448,7 @@ class OpenAICompatibleProvider(BaseLLMProvider):
             fn = tc.get("function", {})
             args_str = fn.get("arguments", "{}")
             try:
-                args = json.loads(args_str)
+                args = json.loads(args_str) if isinstance(args_str, str) else args_str
             except Exception:
                 args = {}
             tool_calls.append(
@@ -393,10 +467,14 @@ class OpenAICompatibleProvider(BaseLLMProvider):
 
 
 def get_llm_provider() -> BaseLLMProvider:
-    """Factory to retrieve the appropriate LLM provider based on environment configuration."""
+    """Factory to retrieve the appropriate LLM provider based on environment configuration.
+    
+    Security rule: Production environments CANNOT silently fall back to MockLLMProvider.
+    """
     env = os.environ.get("ENVIRONMENT", "").lower()
     mock_flag = os.environ.get("MOCK_AI", "").lower()
 
+    # In test environment or when explicitly requested via MOCK_AI=true
     if env == "test" or mock_flag in ("1", "true", "yes"):
         return MockLLMProvider()
 
@@ -406,9 +484,14 @@ def get_llm_provider() -> BaseLLMProvider:
 
     openai_key = os.environ.get("OPENAI_API_KEY")
     if openai_key:
-        base_url = os.environ.get("OPENAI_BASE_URL", "https://api.openai.com/v1")
-        model = os.environ.get("OPENAI_MODEL", "gpt-4o-mini")
-        return OpenAICompatibleProvider(api_key=openai_key, base_url=base_url, model=model)
+        return OpenAICompatibleProvider(api_key=openai_key)
 
-    # If no external API keys are configured, return MockLLMProvider
+    # In production, do not silently fake responses if keys are missing
+    if env in ("production", "prod") or os.environ.get("RENDER"):
+        raise RuntimeError(
+            "AI Copilot configuration error: In production, GEMINI_API_KEY or OPENAI_API_KEY must be configured. "
+            "Silent fallback to MockLLMProvider is disallowed."
+        )
+
+    # In local development without configured keys, provide Mock with warning
     return MockLLMProvider()

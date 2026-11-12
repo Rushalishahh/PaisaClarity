@@ -19,8 +19,8 @@ from decimal import Decimal, ROUND_HALF_UP
 import datetime
 from sqlalchemy.orm import Session
 
-from models import Statement, FinancialAccount, Category, Transaction
-from categorizer import normalize_description, categorize
+from models import Statement, FinancialAccount, Category, Transaction, CategorizationRule
+from categorizer import normalize_description, categorize, categorize_with_explanation
 from transactions import transaction_key
 
 
@@ -224,6 +224,11 @@ def ingest_statement_transactions(
 
     # Pre-cache system + user categories
     categories_map = {c.name.lower(): c for c in db.query(Category).all()}
+    user_rules = (
+        db.query(CategorizationRule)
+        .filter(CategorizationRule.user_id == uid, CategorizationRule.is_active == True)
+        .all()
+    )
 
     # Build seen_key_counts from earlier statements of this user using multiset counting
     previous_statements = (
@@ -269,9 +274,10 @@ def ingest_statement_transactions(
         ref_no = row.get("ref_no")
         merchant = normalize_description(desc)
 
+        decision = categorize_with_explanation(desc, user_rules=user_rules)
         cat_label = row.get("category")
         if not cat_label or cat_label == "Other":
-            cat_label = categorize(desc)
+            cat_label = decision.category
         cat_obj = categories_map.get(cat_label.lower())
         cat_id = cat_obj.id if cat_obj else None
         classification = resolve_classification(tx_type, cat_label)
@@ -313,6 +319,11 @@ def ingest_statement_transactions(
                 "statement_row_index": idx,
                 "filename": statement.filename,
                 "is_overlap": is_overlap,
+                "confidence": decision.confidence,
+                "confidence_level": decision.confidence_level,
+                "categorization_method": decision.method,
+                "matched_rule": decision.matched_rule,
+                "is_unknown": decision.is_unknown,
             },
         )
         db.add(tx)

@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session
 from auth_dependency import get_current_user
 from categorizer import normalize_description
 from database import get_db
-from models import User, FinancialAccount, Category, Transaction
+from models import User, FinancialAccount, Category, Transaction, CategorizationRule
 from schemas import (
     TransactionCreate,
     TransferCreate,
@@ -448,6 +448,38 @@ def correct_transaction_category(
     tx.category_id = cat_id
     tx.category = cat_name
     tx.classification = classification
+
+    # Mark as user override in transaction metadata
+    meta = dict(tx.import_metadata or {})
+    meta["is_user_override"] = True
+    meta["categorization_method"] = "user_override"
+    tx.import_metadata = meta
+
+    # Persist as a user categorization rule for future imports
+    pattern = (tx.merchant or normalize_description(tx.description)).strip().upper()
+    if pattern and len(pattern) >= 2:
+        rule = (
+            db.query(CategorizationRule)
+            .filter(
+                CategorizationRule.user_id == current_user.id,
+                CategorizationRule.pattern == pattern,
+            )
+            .first()
+        )
+        if rule:
+            rule.category_name = cat_name
+            rule.category_id = cat_id
+            rule.is_active = True
+        else:
+            rule = CategorizationRule(
+                user_id=current_user.id,
+                pattern=pattern,
+                category_id=cat_id,
+                category_name=cat_name,
+                match_type="contains",
+                priority=15,
+            )
+            db.add(rule)
 
     db.commit()
     db.refresh(tx)

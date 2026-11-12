@@ -67,3 +67,4 @@ def downgrade() -> None:
     op.drop_index(op.f('ix_ai_conversations_user_id'), table_name='ai_conversations')
     op.drop_index(op.f('ix_ai_conversations_id'), table_name='ai_conversations')
     op.drop_table('ai_conversations')
+

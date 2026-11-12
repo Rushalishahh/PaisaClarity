@@ -55,3 +55,4 @@ def attach_disclaimer(content: str) -> str:
     if DISCLAIMER_TEXT in content:
         return content
     return f"{content.strip()}\n\n---\n*{DISCLAIMER_TEXT}*"
+

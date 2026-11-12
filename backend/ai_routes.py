@@ -1,7 +1,8 @@
 """FastAPI routes for PaisaClarity Secure AI Financial Copilot (Phase 9)."""
 
 import datetime as dt
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+import os
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from sqlalchemy.orm import Session
 
 from auth_dependency import get_current_user
@@ -15,17 +16,36 @@ from schemas import (
     AIMessageResponse,
 )
 from ai.orchestrator import run_copilot_turn
+from rate_limiter import limiter
 
 router = APIRouter(prefix="/ai", tags=["ai-copilot"])
 
 
+def get_ai_chat_rate_limit() -> str:
+    """Read AI chat rate limit from environment or default to 15/minute."""
+    return os.getenv("RATE_LIMIT_AI_CHAT", "15/minute").strip()
+
+
 @router.post("/chat", response_model=AIChatResponse)
+@limiter.limit(get_ai_chat_rate_limit)
 def chat_with_copilot(
+    request: Request,
     req: AIChatRequest,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """Chat with the AI Financial Copilot with conversation persistence and secure tool execution."""
+    """Chat with the AI Financial Copilot with conversation persistence, rate limiting, and secure tool execution."""
+    if not req.prompt or not req.prompt.strip():
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Prompt cannot be empty.",
+        )
+    if len(req.prompt) > 2000:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Prompt cannot exceed 2000 characters.",
+        )
+
     conversation = None
     if req.conversation_id:
         conversation = (
@@ -208,3 +228,4 @@ def delete_conversation(
     db.delete(conv)
     db.commit()
     return {"message": "Conversation deleted successfully"}
+

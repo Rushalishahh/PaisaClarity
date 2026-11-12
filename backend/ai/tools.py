@@ -30,6 +30,7 @@ from cashflow_routes import _compute_account_balance
 from budget_routes import _calculate_budget_metrics
 from savings_routes import _calculate_goal_metrics
 from categorizer import NON_SPENDING_CATEGORIES
+from forecasting import forecast_hybrid_month_end
 
 
 def _parse_date(val: Any) -> Optional[dt.date]:
@@ -556,20 +557,58 @@ def get_spending_forecast(
     db: Session,
     user: User,
 ) -> Dict[str, Any]:
-    """Forecast end-of-month spending based on current month-to-date pace and recurring bills."""
+    """Forecast end-of-month spending based on current month-to-date pace, IQR outlier filtering, and recurring bills."""
     today = dt.date.today()
     _, days_in_month = calendar.monthrange(today.year, today.month)
     days_elapsed = max(1, today.day)
-    days_remaining = days_in_month - days_elapsed
+    days_remaining = max(0, days_in_month - days_elapsed)
 
     # Month-to-date expenses
     first_of_month = dt.date(today.year, today.month, 1)
     mtd_summary = get_spending_summary(db, user, str(first_of_month), str(today))
     mtd_expenses = Decimal(str(mtd_summary["total_expenses"]))
 
-    # Daily burn rate so far
-    daily_pace = mtd_expenses / Decimal(days_elapsed)
-    projected_discretionary = daily_pace * Decimal(days_remaining)
+    # Daily spend history for current month to feed IQR outlier detection
+    daily_txs = (
+        db.query(Transaction.date, Transaction.amount, Transaction.category, Transaction.import_metadata)
+        .filter(
+            Transaction.user_id == user.id,
+            Transaction.classification == "expense",
+            Transaction.date >= first_of_month,
+            Transaction.date <= today,
+        )
+        .all()
+    )
+    daily_spend_map: Dict[dt.date, float] = defaultdict(float)
+    for d, amt, cat, meta in daily_txs:
+        if (cat or "").strip() in NON_SPENDING_CATEGORIES:
+            continue
+        if meta and meta.get("is_overlap") is True:
+            continue
+        daily_spend_map[d] += float(amt)
+    daily_history = [daily_spend_map[first_of_month + dt.timedelta(days=i)] for i in range(days_elapsed)]
+
+    # Past completed months history (up to 6 months)
+    six_months_ago = first_of_month - dt.timedelta(days=180)
+    past_txs = (
+        db.query(Transaction.date, Transaction.amount, Transaction.category, Transaction.import_metadata)
+        .filter(
+            Transaction.user_id == user.id,
+            Transaction.classification == "expense",
+            Transaction.date >= six_months_ago,
+            Transaction.date < first_of_month,
+        )
+        .all()
+    )
+    monthly_totals: Dict[str, float] = defaultdict(float)
+    for t_date, amt, cat, meta in past_txs:
+        if (cat or "").strip() in NON_SPENDING_CATEGORIES:
+            continue
+        if meta and meta.get("is_overlap") is True:
+            continue
+        key = f"{t_date.year}-{t_date.month:02d}"
+        monthly_totals[key] += float(amt)
+    completed_months = list(monthly_totals.values())
 
     # Upcoming recurring bills this month
     recurring = (
@@ -586,17 +625,28 @@ def get_spending_forecast(
         (Decimal(str(r.average_amount)) for r in recurring), Decimal("0.00")
     )
 
-    total_projected_spend = mtd_expenses + projected_discretionary + upcoming_recurring_total
+    # Hybrid run-rate forecast with IQR outlier resilience
+    forecast_result = forecast_hybrid_month_end(
+        today=today,
+        mtd_expenses=float(mtd_expenses),
+        daily_spend_history=daily_history,
+        upcoming_recurring_total=float(upcoming_recurring_total),
+        completed_months_history=completed_months,
+    )
 
-    return {
+    res = forecast_result.to_dict()
+    # Backward compatibility keys
+    daily_pace = mtd_expenses / Decimal(days_elapsed)
+    res.update({
         "current_date": str(today),
         "days_elapsed": days_elapsed,
         "days_remaining": days_remaining,
         "month_to_date_spend": float(mtd_expenses),
         "daily_average_spend": round(float(daily_pace), 2),
         "upcoming_recurring_bills_total": float(upcoming_recurring_total),
-        "projected_month_end_total": round(float(total_projected_spend), 2),
-    }
+        "projected_month_end_total": round(forecast_result.predicted_total, 2),
+    })
+    return res
 
 
 # ---------------------------------------------------------------------------
@@ -795,6 +845,8 @@ FINANCIAL_TOOLS_SCHEMA: List[Dict[str, Any]] = [
 ]
 
 
+import inspect
+
 TOOL_FUNCTIONS: Dict[str, Callable] = {
     "get_spending_summary": get_spending_summary,
     "get_category_breakdown": get_category_breakdown,
@@ -812,16 +864,23 @@ TOOL_FUNCTIONS: Dict[str, Callable] = {
 
 
 def execute_tool(name: str, args: Dict[str, Any], db: Session, user: User) -> Dict[str, Any]:
-    """Safely dispatch and execute a registered financial tool."""
+    """Safely dispatch and execute a registered financial tool with strict argument sanitization."""
     func_target = TOOL_FUNCTIONS.get(name)
     if not func_target:
         return {"error": f"Unknown tool: '{name}'"}
 
+    # Strict security & ownership guarantee:
+    # 1. Strip any parameters not explicitly declared in the tool signature.
+    # 2. Never allow user_id, db, or user to be injected or overridden by LLM payloads.
+    sig = inspect.signature(func_target)
+    allowed_params = set(sig.parameters.keys()) - {"db", "user", "current_user"}
+    sanitized_args = {k: v for k, v in (args or {}).items() if k in allowed_params}
+
     try:
         if name == "calculate_savings_projection":
             # Pure math tool, does not require db or user
-            return func_target(**args)
+            return func_target(**sanitized_args)
         else:
-            return func_target(db=db, user=user, **args)
+            return func_target(db=db, user=user, **sanitized_args)
     except Exception as exc:
         return {"error": f"Tool execution failed: {str(exc)}"}

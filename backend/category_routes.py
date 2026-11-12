@@ -6,11 +6,13 @@ from sqlalchemy.orm import Session
 
 from auth_dependency import get_current_user
 from database import get_db
-from models import User, Category, Transaction
+from models import User, Category, Transaction, CategorizationRule
 from schemas import (
     CategoryCreate,
     CategoryUpdate,
     CategoryResponse,
+    CategorizationRuleCreate,
+    CategorizationRuleResponse,
 )
 
 router = APIRouter(prefix="/categories", tags=["categories"])
@@ -71,6 +73,99 @@ def create_category(
     db.commit()
     db.refresh(cat)
     return cat
+
+
+# --- Categorization Rules Endpoints (Phase 10) ---
+# Defined before /{category_id} to prevent path collision with integer ID parameter
+
+@router.get("/rules", response_model=list[CategorizationRuleResponse])
+def list_categorization_rules(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """List all custom categorization rules defined by the user."""
+    rules = (
+        db.query(CategorizationRule)
+        .filter(CategorizationRule.user_id == current_user.id)
+        .order_by(CategorizationRule.priority.desc(), CategorizationRule.created_at.desc())
+        .all()
+    )
+    return rules
+
+
+@router.post("/rules", response_model=CategorizationRuleResponse, status_code=status.HTTP_201_CREATED)
+def create_categorization_rule(
+    rule_in: CategorizationRuleCreate,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Create a new persistent user categorization rule."""
+    pattern_clean = rule_in.pattern.strip().upper()
+    cat_name = rule_in.category_name.strip()
+
+    # Validate or resolve category_id
+    cat = (
+        db.query(Category)
+        .filter(
+            Category.name.ilike(cat_name),
+            or_(Category.is_system == True, Category.user_id == current_user.id),
+        )
+        .first()
+    )
+    cat_id = cat.id if cat else rule_in.category_id
+
+    # Check for duplicate rule
+    existing = (
+        db.query(CategorizationRule)
+        .filter(
+            CategorizationRule.user_id == current_user.id,
+            CategorizationRule.pattern == pattern_clean,
+        )
+        .first()
+    )
+    if existing:
+        existing.category_name = cat_name
+        existing.category_id = cat_id
+        existing.match_type = rule_in.match_type
+        existing.priority = rule_in.priority
+        existing.is_active = True
+        db.commit()
+        db.refresh(existing)
+        return existing
+
+    rule = CategorizationRule(
+        user_id=current_user.id,
+        pattern=pattern_clean,
+        category_id=cat_id,
+        category_name=cat_name,
+        match_type=rule_in.match_type,
+        priority=rule_in.priority,
+        is_active=True,
+    )
+    db.add(rule)
+    db.commit()
+    db.refresh(rule)
+    return rule
+
+
+@router.delete("/rules/{rule_id}", status_code=status.HTTP_200_OK)
+def delete_categorization_rule(
+    rule_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Delete a user categorization rule."""
+    rule = (
+        db.query(CategorizationRule)
+        .filter(CategorizationRule.id == rule_id, CategorizationRule.user_id == current_user.id)
+        .first()
+    )
+    if not rule:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Rule not found")
+
+    db.delete(rule)
+    db.commit()
+    return {"status": "ok", "message": "Categorization rule deleted successfully"}
 
 
 @router.get("/{category_id}", response_model=CategoryResponse)

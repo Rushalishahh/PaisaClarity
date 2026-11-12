@@ -773,3 +773,29 @@ class AIConversationDetailResponse(BaseModel):
 
     model_config = ConfigDict(from_attributes=True)
 
+
+# --- Phase 10: Categorization Rule Schemas ---
+
+class CategorizationRuleCreate(BaseModel):
+    pattern: str = Field(..., min_length=2, max_length=200, description="Merchant name, keyword, or regex pattern")
+    category_name: str = Field(..., min_length=1, max_length=100, description="Target category name")
+    category_id: int | None = Field(None, description="Optional target category ID")
+    match_type: str = Field("contains", description="'contains', 'exact', or 'regex'")
+    priority: int = Field(10, description="Priority weight (higher values match first)")
+
+
+class CategorizationRuleResponse(BaseModel):
+    id: int
+    user_id: int
+    pattern: str
+    category_id: int | None
+    category_name: str
+    match_type: str
+    priority: int
+    is_active: bool
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
+

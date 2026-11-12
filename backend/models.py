@@ -34,6 +34,7 @@ class User(Base):
     recurring_payments = relationship("RecurringPayment", back_populates="user", cascade="all, delete-orphan")
     alerts = relationship("FinancialAlert", back_populates="user", cascade="all, delete-orphan")
     ai_conversations = relationship("AIConversation", back_populates="user", cascade="all, delete-orphan")
+    categorization_rules = relationship("CategorizationRule", back_populates="user", cascade="all, delete-orphan")
     alert_preferences = Column(JSON, nullable=True)
 
 
@@ -380,3 +381,23 @@ class AIMessage(Base):
 
     conversation = relationship("AIConversation", back_populates="messages")
     user = relationship("User")
+
+
+class CategorizationRule(Base):
+    __tablename__ = "categorization_rules"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    pattern = Column(String(200), nullable=False)
+    category_id = Column(Integer, ForeignKey("categories.id", ondelete="SET NULL"), nullable=True, index=True)
+    category_name = Column(String(100), nullable=False)
+    match_type = Column(String(50), nullable=False, default="contains")  # contains, exact, regex
+    priority = Column(Integer, nullable=False, default=10)
+    is_active = Column(Boolean, nullable=False, default=True)
+
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
+
+    user = relationship("User", back_populates="categorization_rules")
+    category_rel = relationship("Category")
+
