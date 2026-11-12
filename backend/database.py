@@ -83,7 +83,17 @@ def init_engine(url: str | None = None, fallback_dir: Path | None = None):
         safe_url = mask_url(target_url)
         # 5 second connection timeout for PostgreSQL
         connect_args = {"connect_timeout": 5}
-        eng = create_engine(target_url, connect_args=connect_args)
+        pool_size = int(os.getenv("DB_POOL_SIZE", "10"))
+        max_overflow = int(os.getenv("DB_MAX_OVERFLOW", "20"))
+        pool_recycle = int(os.getenv("DB_POOL_RECYCLE", "300"))
+        eng = create_engine(
+            target_url,
+            connect_args=connect_args,
+            pool_pre_ping=True,
+            pool_size=pool_size,
+            max_overflow=max_overflow,
+            pool_recycle=pool_recycle,
+        )
 
         last_err = None
         for attempt, delay in enumerate(RETRY_DELAYS, start=1):

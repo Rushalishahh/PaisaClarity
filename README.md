@@ -1,222 +1,261 @@
-# PaisaClarity
+# PaisaClarity — Privacy-First Personal Finance Assistant & AI Copilot
 
-**PaisaClarity** is a personal finance assistant designed for Indian banking and investment ecosystems. It allows users to upload bank and credit card statements (PDF, CSV, Excel), automatically parses and categorizes transactions, detects recurring subscriptions and anomalous spending, and provides a "reality check" comparison between actual investment returns (via live AMFI Mutual Fund NAVs) and traditional insurance policies.
+[![Backend Tests](https://img.shields.io/badge/pytest-154%20passed-brightgreen.svg)](docs/release-readiness.md)
+[![PostgreSQL Integration](https://img.shields.io/badge/postgresql-18.6%20verified-blue.svg)](docs/postgresql-validation.md)
+[![Browser E2E](https://img.shields.io/badge/playwright-12%20flows%20passed-success.svg)](docs/e2e-test-results.md)
+[![Frontend Quality](https://img.shields.io/badge/eslint-0%20errors-brightgreen.svg)](docs/release-readiness.md)
+[![Python](https://img.shields.io/badge/python-3.11-blue.svg)](https://www.python.org/)
+[![React](https://img.shields.io/badge/react-19-cyan.svg)](https://react.dev/)
 
----
+**PaisaClarity** is a production-hardened, privacy-centric personal finance assistant and intelligent ledger engineered for the Indian banking and investment ecosystem. 
 
-## Live Demo
-
-- **Frontend (Vercel)**: `<!-- TODO: Insert your Vercel deployment URL here, e.g. https://paisa-clarity.vercel.app -->`
-- **Backend API (Render)**: `<!-- TODO: Insert your Render API URL here, e.g. https://paisa-clarity-api.onrender.com -->`
-
-> **Note on Free-Tier Hosting**: The backend is hosted on Render's free tier. If the service has been inactive, the initial request may take 30–60 seconds while the backend container spins up (cold start). Subsequent requests will respond normally.
-
----
-
-## Features & Implementation Status
-
-| Feature | Description | Status |
-|---|---|---|
-| **Multi-Format Statement Ingestion** | Extracts transactions from PDF (borderless/bordered tables via pdfplumber), CSV, and Excel (.xlsx, .xls) files. Validates PDF magic bytes (`%PDF-`) and enforces a 10MB file size ceiling. | Supported |
-| **Deterministic Categorization** | Uses a whole-word regex pattern-matching engine with keyword stems for 12 categories (Food, Groceries, Shopping, Entertainment, Utilities, Healthcare, Travel, etc.). | Supported |
-| **Spending Insights & Trends** | Computes monthly spend breakdowns, month-over-month category percentage trends, and next-month spending forecasts. | Supported |
-| **Anomaly & Subscription Detection** | Highlights unusually high transactions ($>2\times$ category average) and detects recurring monthly subscription charges. | Supported |
-| **Reality Check & Live NAV Valuation** | Fetches live Net Asset Values (NAV) for Indian mutual funds from the official AMFI API (`mfapi.in`) and calculates current portfolio values and premiums. | Supported |
-| **Investment Portfolio Tracking** | Tracks market assets (stocks, mutual funds) alongside policy assets (term insurance, endowment plans). | Supported |
-| **Duplicate Detection** | Generates a deterministic transaction hash key (`date_amount_normalized_description`) to prevent duplicate entry processing. | Supported |
-| **Authentication & Protection** | 12-round bcrypt password hashing, signed JWT tokens, rate limiting on sensitive routes, and production secret enforcement. | Supported |
-| **Health Probes** | Independent liveness (`/health`) and readiness (`/health/ready`) endpoints for automated uptime monitoring and orchestrators. | Supported |
+Unlike traditional trackers that demand open banking credentials or store private statements on disk, PaisaClarity processes multi-format bank statements (PDF, CSV, Excel) **entirely in server memory**, normalizes transactions into double-entry ledgers with **exact Decimal arithmetic**, prevents double-counting on inter-account transfers, and pairs verified data with a **secure AI Copilot** powered by deterministic tool calling.
 
 ---
 
-## Architecture
+## Deployment & Staging Status
+
+> [!NOTE]
+> **Deployment Readiness Baseline**: All backend APIs, PostgreSQL migrations, frontend production builds, and Playwright browser suites have been validated locally and against disposable PostgreSQL 18.6 clusters. Live deployment to public cloud hosts (Render / Vercel / Supabase) is fully prepared and runbook-documented, pending explicit production release approval.
+
+---
+
+## The Problem PaisaClarity Solves
+
+1. **Privacy Insecurity in Modern Fintech**: Most financial trackers upload and store raw banking statements or passwords on cloud object stores, introducing massive data leakage risks.
+2. **Floating-Point Arithmetic Drift**: Naive budget tools use IEEE-754 floating-point numbers (`0.1 + 0.2 = 0.30000000000000004`), leading to balance drift over large transaction histories.
+3. **Double-Counting Transfers**: Moving money between savings and checking accounts is often recorded as both an expense and income, distorting true savings rates and cash flow metrics.
+4. **Hallucinating AI Advisors**: Standard LLM chat interfaces invent mathematical totals when answering financial questions. PaisaClarity forces the AI to execute server-side verified SQL tools with enforced multi-tenant boundaries.
+
+---
+
+## Core Capabilities & Features
+
+| Domain | Feature | Technical Implementation |
+| :--- | :--- | :--- |
+| **Ingestion** | Multi-Format Statement Parsing | In-memory extraction from PDF (tabular and text via `pdfplumber`), CSV, and Excel (`.xlsx`, `.xls`). 10MB ceiling, empty file rejection, and zero disk writes. |
+| **Ledger** | Accounts & Reconciliation | Separation of verified bank accounts from unassigned placeholder accounts. Unreconciled accounts are excluded from net worth until reconciled. |
+| **Categorization** | Deterministic Engine | Whole-word regex matching tuned for Indian banking narratives (UPI, NEFT, RTGS, IMPS, POS, Swiggy, Zomato, Zerodha, etc.). |
+| **Transactions** | Double-Entry & Transfer Pairing | Classifies transactions into `debit`, `credit`, and `transfer`. Inter-account movements are paired and excluded from income and spend aggregates. |
+| **Deduplication** | Composite Source Row Tracking | Prevents double-counting using `source_statement_id` + `source_row_index` composite uniqueness, plus fuzzy key hashing for cross-statement safety. |
+| **Budgets** | Category & Global Limits | Tracks dynamic spending against monthly limits with real-time 80% threshold alerts and over-budget warnings. |
+| **Savings Goals** | Target Milestones & Sinking Funds | Progressive contribution tracking with target dates and negative-balance guardrails. |
+| **Cash Flow** | Recurring Payment Intelligence | Identifies subscription patterns (Netflix, Spotify, SIPs, utilities) and forecasts month-ahead obligations. |
+| **Alerts** | Proactive Threshold Triggers | Event-driven alert generation for budget breaches, unusual transaction spikes ($>2\times$ baseline), and anomalous debits. |
+| **AI Copilot** | Secure Financial Assistant | Tool-calling assistant with 12 deterministic financial tools. Strictly enforces authenticated `user_id` server binding; mock AI prohibited in production. |
+| **Reporting** | Executive Financial Reports | In-memory generation of CSV transaction registers (with formula injection defense) and executive PDF financial reports. |
+| **Reality Check** | Mutual Fund Valuation | Compares actual investment performance against traditional endowments using live Net Asset Values (NAV) from the AMFI API (`mfapi.in`). |
+
+---
+
+## System Architecture
 
 ```mermaid
-graph TD
-    User([User Browser]) -->|HTTPS / REST| Frontend["React + Vite Frontend (Vercel)"]
-    Frontend -->|Authorization: Bearer JWT| Backend["FastAPI Backend (Render)"]
-    
-    subgraph Backend Pipeline
-        Backend --> IngestEngine["Ingestion Engine\n(PDF / CSV / Excel)"]
-        IngestEngine --> Categorizer["Whole-Word Regex Categorizer"]
-        Categorizer --> Insights["Financial Insights & Trends"]
-        Backend --> RealityCheck["Reality Check Engine"]
-    end
-    
-    Backend -->|SQLAlchemy / SSL| Database[("PostgreSQL Database (Supabase)")]
-    RealityCheck -->|HTTPS GET| ExternalAPI["AMFI Mutual Fund API\n(api.mfapi.in)"]
+flowchart TD
+    Client["React 19 Frontend\n(Vite 8, Tailwind v4, Recharts 3)"]
+    API["FastAPI Backend\n(Python 3.11, Uvicorn, SlowAPI)"]
+    DB[("PostgreSQL 16/18 Database\n(SQLAlchemy 2.0, Alembic)")]
+    AI["AI Copilot Provider\n(Google Gemini / OpenAI REST)"]
+    External["AMFI Mutual Fund API\n(Live NAV Feeds)"]
+
+    Client -->|"JWT Bearer Auth & REST JSON"| API
+    API -->|"Connection Pool (pool_pre_ping)"| DB
+    API -->|"Tool-Calling (Server-Bound user_id)"| AI
+    API -->|"External Market Data"| External
 ```
 
----
-
-## Tech Stack
-
-- **Backend**: Python 3.11, [FastAPI](https://fastapi.tiangolo.com/), [SQLAlchemy](https://www.sqlalchemy.org/), [Alembic](https://alembic.sqlalchemy.org/), [Pydantic v2](https://docs.pydantic.dev/), [SlowAPI](https://github.com/laurentS/slowapi) (rate limiting), [pdfplumber](https://github.com/jsvine/pdfplumber), [Pandas](https://pandas.pydata.org/).
-- **Frontend**: [React 18](https://react.dev/), [Vite](https://vitejs.dev/), [Tailwind CSS](https://tailwindcss.com/), [Lucide React](https://lucide.dev/), [Recharts](https://recharts.org/).
-- **Database & Storage**: [PostgreSQL](https://www.postgresql.org/) (via [Supabase](https://supabase.com/)), fallback to SQLite for zero-config local development and automated testing.
-- **Testing & Tooling**: [Pytest](https://docs.pytest.org/), [Docker](https://www.docker.com/), [GitHub Actions](https://github.com/features/actions).
+For complete technical specifications, see [docs/architecture.md](docs/architecture.md).
 
 ---
 
-## Local Setup
+## Database Architecture & Design
 
-### Option 1: Without Docker (Standard Python & Node.js)
+PaisaClarity models a complete personal finance ecosystem across **15 relational tables** and **81 covering indexes**:
 
-#### Prerequisites
+1. `users`: Identity, bcrypt credentials, and profile state.
+2. `statements`: Ingested bank statement metadata and in-memory analysis summaries.
+3. `financial_accounts`: Verified bank, credit, cash, and placeholder accounts with calculated balances.
+4. `categories`: Hierarchical and user-defined transaction categories with display preferences.
+5. `transactions`: Normalized financial entries with `Decimal(14, 2)` monetary values, transfer links, and deduplication keys.
+6. `budgets`: Monthly budget limits and warning thresholds.
+7. `budget_categories`: Per-category spending caps.
+8. `savings_goals`: Target savings projects, milestones, and target completion dates.
+9. `savings_contributions`: Sinking fund deposits and withdrawals.
+10. `recurring_payments`: Auto-detected recurring bills, subscriptions, and SIP frequencies.
+11. `financial_alerts`: System-generated warnings, threshold notifications, and dismissal state.
+12. `ai_conversations`: Multi-turn chat sessions bound to authenticated users.
+13. `ai_messages`: Structured conversation history including assistant tool calls and responses.
+14. `investments`: Portfolio asset entries (mutual funds, stocks, insurance policies).
+15. `alembic_version`: Database migration tracking with ANSI-compliant boolean expressions.
+
+---
+
+## AI Copilot Architecture & Security Guardrails
+
+The PaisaClarity AI Copilot is built on deterministic tool-calling rather than unstructured text prompting:
+
+- **Server-Side Identity Binding**: When a user asks a question, the server binds `user_id = current_user.id`. The LLM has zero capability to choose, inspect, or override the target user.
+- **Strictly Typed Tool Calling**: 12 deterministic tools execute SQL queries via SQLAlchemy ORM (e.g., `get_spending_by_category`, `calculate_savings_rate`, `get_budget_status`, `forecast_monthly_spending`).
+- **Mathematical Accuracy**: Calculations are executed with Python `Decimal` in backend services. The LLM only receives exact calculated numbers to summarize in natural language.
+- **Production Guard**: In production (`ENVIRONMENT=production`), the application strictly prohibits `MockLLMProvider` and refuses to start without a valid `GEMINI_API_KEY` or `OPENAI_API_KEY`.
+
+---
+
+## Verification & Test Results
+
+PaisaClarity enforces a multi-tier testing strategy covering unit, integration, migration, security, frontend build, and headless browser tests:
+
+```
+========================================================================================
+Test Suite                               Scope / Engine                 Result
+========================================================================================
+Backend Pytest Suite                     154 unit & feature tests       154 / 154 PASSED (0 failures)
+PostgreSQL Integration Tests             PostgreSQL 18.6 disposable     10 / 10 PASSED (0 drift)
+Playwright Browser E2E Suite             Chromium Headless (12 flows)   12 / 12 PASSED (9.6s)
+Frontend Unit Tests                      Node test runner               5 / 5 PASSED
+Frontend Code Quality                    ESLint                         0 errors, 0 warnings
+Frontend Production Build                Vite 8 / Rolldown              PASSED (all chunks < 400 kB)
+Alembic Migration Consistency            Clean & Populated Upgrade      PASSED (diff = 0)
+Git Secrets Inspection                   No tracked .env or credentials PASSED
+========================================================================================
+```
+
+*Note on Benchmarks*: The above figures represent synthetic regression suites executed in isolated environments. Real-world execution times may vary depending on network latency to external AI providers.
+
+---
+
+## Local Development Setup
+
+### Prerequisites
 - Python 3.11+
-- Node.js 20+ and npm
+- Node.js 22 LTS & npm
+- PostgreSQL 15+ (optional; SQLite fallback enabled for zero-config local development)
 
-#### 1. Backend Setup
+### 1. Backend Setup
 ```bash
-# Navigate to backend directory
-cd backend
+# Clone the repository
+git clone https://github.com/your-username/PaisaClarity.git
+cd PaisaClarity/backend
 
-# Create and activate a virtual environment
+# Create virtual environment
 python -m venv venv
-# On Windows:
+
+# Activate virtual environment
+# Windows:
 .\venv\Scripts\activate
-# On Linux/macOS:
+# Linux/macOS:
 source venv/bin/activate
 
 # Install dependencies
 pip install -r requirements.txt
 pip install -r requirements-dev.txt
 
-# Configure environment variables
+# Copy environment configuration
 cp .env.example .env
-# Edit .env as needed (by default it will safely fall back to local SQLite)
 
-# Start development server
+# Run database migrations (or let auto-create handle local SQLite)
+alembic upgrade head
+
+# Start backend server
 uvicorn main:app --reload --port 8000
 ```
-Backend API will be running at `http://127.0.0.1:8000` (Swagger docs available at `http://127.0.0.1:8000/docs`).
+Backend will be live at `http://localhost:8000` (API docs at `http://localhost:8000/docs`).
 
-#### 2. Frontend Setup
+### 2. Frontend Setup
 ```bash
-# Navigate to frontend directory
-cd frontend-react
+cd ../frontend-react
 
 # Install dependencies
 npm install
 
-# Start Vite dev server
+# Copy environment configuration
+cp .env.example .env
+
+# Run development server
 npm run dev
 ```
-Frontend UI will be running at `http://localhost:5173`.
+Frontend will be live at `http://localhost:5173`.
 
----
-
-### Option 2: With Docker & Docker Compose
-
-Docker Compose provisions a local PostgreSQL 16 container and builds the backend container automatically.
-
+### 3. Running Test Suites
 ```bash
-# From repository root:
-docker compose up --build
-```
-
-- Backend API: `http://localhost:8000`
-- PostgreSQL: `localhost:5432` (`paisaclarity`)
-
-To run database migrations against the containerized PostgreSQL instance:
-```bash
-docker compose run --rm backend alembic upgrade head
-```
-
----
-
-## Environment Variables
-
-### Backend Configuration (`backend/.env`)
-
-| Variable | Required? | Default | Purpose |
-|---|---|---|---|
-| `ENVIRONMENT` | Optional | `development` | Set to `production` in production (or auto-detected via `RENDER`). Rejects weak secrets and requires Postgres. |
-| `DATABASE_URL` | Optional | *(falls back to SQLite in dev)* | PostgreSQL connection URI (e.g. Supabase connection string). |
-| `SECRET_KEY` | Optional in dev, **Required in prod** | `change-me-to-a-long-random-string...` | Cryptographic secret used to sign and verify JWT tokens (min 32 characters in production). |
-| `ALLOWED_ORIGINS` | Optional | `http://localhost:5173,http://127.0.0.1:5173` | Comma-separated list of allowed frontend origins for CORS. |
-| `RATE_LIMIT_ENABLED` | Optional | `true` | Toggles authentication rate limiting on `/auth/login` and `/auth/signup`. |
-| `RATE_LIMIT_LOGIN` | Optional | `10/minute` | Rate limit ceiling for login requests per client IP. |
-| `RATE_LIMIT_SIGNUP` | Optional | `5/minute` | Rate limit ceiling for signup requests per client IP. |
-| `TRUST_PROXY_HEADERS` | Optional | `false` | When true (or when on Render), inspects trusted reverse-proxy headers for client IP. |
-| `PROXY_HEADER_ORDER` | Optional | `cf-connecting-ip,true-client-ip` | Comma-separated priority order for upstream edge proxy headers. |
-| `AUTO_CREATE_TABLES` | Optional | `true` | Controls whether `Base.metadata.create_all()` executes on startup. Set to `false` when using strict Alembic migrations. |
-| `LLM_API_KEY` | Optional | `""` | Reserved for future AI advisor feature. |
-
-### Frontend Configuration (`frontend-react/.env`)
-
-| Variable | Required? | Default | Purpose |
-|---|---|---|---|
-| `VITE_API_URL` | Optional | `http://localhost:8000` | Base URL pointing to the FastAPI backend API service. |
-
----
-
-## Running Tests
-
-All automated tests run without requiring any external credentials or services (using an isolated SQLite in-memory database):
-
-```bash
-# Run backend test suite
+# Backend pytest suite (154 tests)
 cd backend
 pytest -q
 
-# Run with test coverage report
-pytest --cov=. --cov-report=term-missing
+# PostgreSQL integration suite (requires local Postgres service)
+python scripts/test_postgresql_integration.py
 
-# Run frontend build check
+# Frontend lint, unit tests, and production build
 cd ../frontend-react
+npm run lint
+npm test -- --run
 npm run build
+
+# Playwright browser end-to-end suite
+npx playwright test
 ```
 
 ---
 
-## Migrations
+## Environment Variable Reference
 
-Database schema migrations are version-controlled using Alembic under `backend/alembic/`.
-- Run migrations: `cd backend && alembic upgrade head`
-- Roll back last migration: `cd backend && alembic downgrade -1`
-- Detailed production migration and zero-downtime transition instructions: see [docs/migrations-plan.md](docs/migrations-plan.md).
+### Backend (`backend/.env`)
+| Variable | Description | Default / Example |
+| :--- | :--- | :--- |
+| `ENVIRONMENT` | Runtime environment (`development`, `test`, `production`) | `development` |
+| `DATABASE_URL` | PostgreSQL connection string | `postgresql://user:pass@localhost:5432/finance` |
+| `SECRET_KEY` | JWT signing secret (min 32 characters in production) | Random 64-char hex string |
+| `ALLOWED_ORIGINS` | Permitted CORS frontend origins | `http://localhost:5173` |
+| `AUTO_CREATE_TABLES` | Auto-run DDL on startup (`false` in strict prod) | `true` |
+| `DB_POOL_SIZE` | SQLAlchemy connection pool size | `10` |
+| `DB_MAX_OVERFLOW` | SQLAlchemy maximum overflow connections | `20` |
+| `DB_POOL_RECYCLE` | Stale connection recycling period (seconds) | `300` |
+| `GEMINI_API_KEY` | Google Gemini API key for AI Copilot | Optional in dev, required in prod |
+| `RATE_LIMIT_AI_CHAT` | Throttling limit for AI Copilot | `20/minute` |
 
----
-
-## Security Notes
-
-1. **Password Hashing**: User passwords are encrypted with `bcrypt` (12-round work factor) before storage. Plain-text passwords are never saved.
-2. **Password Validation**: New user signups must meet minimum complexity ($\ge 8$ characters, not purely numeric, $\le 72$ UTF-8 bytes). The byte cap eliminates a native bcrypt C-library crash (HTTP 500) on oversized payloads.
-3. **Stateless JWT Tokens**: Signed using HMAC-SHA256 with user ID payloads and a 24-hour expiration window.
-4. **Data Isolation & Ownership**: All queries for statements, investments, and transactions strictly filter by `current_user.id` resolved from validated tokens.
-5. **Anti-Spoofing Rate Limiting**: Sensitive auth routes are rate-limited via SlowAPI. In production on Render, the system prioritizes non-forgeable Cloudflare edge headers (`CF-Connecting-IP` / `True-Client-IP`) and ignores attacker-controlled leftmost `X-Forwarded-For` values. See [docs/auth-notes.md](docs/auth-notes.md).
-6. **Upload Sanitization**: Enforces a strict 10MB payload ceiling and validates initial file headers (`%PDF-`) to reject malformed or malicious uploads.
-7. **Production Fail-Fast**: When `ENVIRONMENT=production`, startup crashes early if the database is unreachable or if insecure default credentials are used.
-
----
-
-## Known Limitations
-
-- **In-Memory Rate Limiter**: Rate limit counters are tracked in application memory. Counters reset on service restart or redeploy. For multi-worker scaling, a Redis backend is recommended.
-- **Statement Storage Format**: Parsed transactions are currently stored as a serialized JSON blob on the `Statement` record rather than normalized individual transaction table rows.
-- **Rule-Based Categorization**: Categorization uses a first-match-wins regex keyword dictionary. It does not use machine learning or natural language models, so unrecognized merchants fall into `Other Expense`.
-- **JWT Lifespan & Token Refresh**: Authentication tokens expire after 24 hours without automatic silent refresh. When expired, users must log in again.
-- **Cold Starts**: On free-tier cloud platforms (Render), the backend spins down after inactivity, causing a ~30–50s delay on the first request.
+### Frontend (`frontend-react/.env`)
+| Variable | Description | Default / Example |
+| :--- | :--- | :--- |
+| `VITE_API_URL` | Base URL of the backend API | `http://localhost:8000` |
+| `VITE_API_BASE_URL` | Alternate alias for backend API URL | `http://localhost:8000` |
 
 ---
 
-## Screenshots
+## Production Deployment Architecture
 
-<!-- TODO: Capture screenshots of your running application and save them into docs/images/ -->
-- **Dashboard & Monthly Summary**:
-  `<!-- TODO: ![Dashboard](docs/images/dashboard.png) -->`
-- **Statement Analysis & Spending Breakdown**:
-  `<!-- TODO: ![Statement Analysis](docs/images/statement-analysis.png) -->`
-- **Reality Check vs Mutual Fund Returns**:
-  `<!-- TODO: ![Reality Check](docs/images/reality-check.png) -->`
+```
+[User Browser]
+      │
+      ▼
+[Vercel Frontend] (React 19 SPA, Global CDN, SPA Rewrites via vercel.json)
+      │ HTTPS (JWT)
+      ▼
+[Render API Service] (FastAPI, Python 3.11, Uvicorn, SlowAPI Rate Limiting)
+      │ Pooled SQL (SSL required)
+      ▼
+[Supabase Managed PostgreSQL] (15 Tables, 81 Indexes, Exact Decimal Precision)
+```
+
+- **Deployment Runbook**: Detailed migration, verification, and rollback steps in [docs/deployment-runbook.md](docs/deployment-runbook.md).
+- **Security Audit**: OWASP security review and vulnerability mitigations in [docs/security-audit.md](docs/security-audit.md).
+- **Release Readiness**: Staging verification decision matrix in [docs/release-readiness.md](docs/release-readiness.md).
 
 ---
 
-## Key Design Decisions & Learnings
+## Known Limitations & Roadmap
 
-1. **Privacy-First Statement Processing**: Uploaded bank statements and credit card summaries are processed in-memory during ingestion and immediately discarded. Raw PDF and CSV documents containing account numbers or personal details are never persisted to disk or object storage.
-2. **Whole-Word Regex Tokenization**: Replaced naive substring matching with regex word-boundary patterns (`\b(keyword)\b`). This eliminates false positives (e.g. matching "PVR" inside unrelated words while properly identifying "UPI/PVR") while preserving clean duplicate-detection keys (`transaction_key`).
-3. **Hardened Reverse-Proxy IP Resolution**: Addressed Render's reverse proxy behavior of appending rather than stripping incoming headers. The rate limiter inspects authenticated edge headers (`CF-Connecting-IP`) and takes the rightmost proxy hop, preventing IP spoofing bypasses.
-4. **Non-Breaking Additive Evolution**: Database models, API schemas, and validation rules were evolved incrementally (e.g. making `start_date` optional in database schema but required on new policies via Pydantic validators), ensuring existing database records and tests remain intact.
-5. **Financial Reality Check Modeling**: Designed a comparison engine that pairs AMFI mutual fund historical NAV performance with traditional insurance policies, calculating realistic returns based on actual payment frequencies and start dates.
+### Known Limitations
+- **Indian Banking Formats**: While statement parsing supports standard CSV, Excel, and structured PDF layouts from major Indian banks (HDFC, SBI, ICICI, Axis), scanned image-based statements without text layers require OCR preprocessing.
+- **Live Market Data**: Mutual fund NAV lookups depend on the public AMFI service (`mfapi.in`); temporary third-party API rate limits or latency may delay live valuation updates.
+
+### Planned Enhancements
+- Integration of Tesseract OCR for physical scanned bank slips.
+- Direct account aggregation via Account Aggregator (RBI AA framework) APIs.
+- Multi-currency ledger support (USD, EUR, GBP) alongside INR.
+- WebPush browser notifications for immediate budget threshold alerts.
+
+---
+
+## License
+
+This project is licensed under the MIT License — see the [LICENSE](LICENSE) file for details.

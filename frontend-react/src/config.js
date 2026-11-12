@@ -8,5 +8,6 @@
  * APP_NAME: the product name in one constant, so renaming the app means
  * changing exactly one line. Used by the navbar, landing page and <title>.
  */
-export const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:8000"
+const rawApiUrl = import.meta.env.VITE_API_URL || import.meta.env.VITE_API_BASE_URL || "http://localhost:8000"
+export const API_BASE = rawApiUrl.replace(/\/+$/, "")
 export const APP_NAME = "Paisa Clarity"

@@ -12,7 +12,7 @@ backend_dir = Path(__file__).resolve().parent
 if str(backend_dir) not in sys.path:
     sys.path.insert(0, str(backend_dir))
 
-from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Depends, Query
+from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Depends, Query, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from sqlalchemy import text
@@ -64,7 +64,7 @@ from auth_dependency import get_current_user
 from backfill import ingest_statement_transactions
 from database import get_db, Base, engine
 import models
-from models import User, Statement, Investment
+from models import User, Statement, Investment, FinancialAccount
 from schemas import InvestmentCreate, InvestmentUpdate
 
 
@@ -406,6 +406,19 @@ async def upload_statement(
     ingest_report. The file itself is processed in memory only - never
     written to disk, never stored; only the derived analysis is saved.
     """
+    # Verify account ownership if account_id is explicitly passed
+    if account_id is not None:
+        user_acc = (
+            db.query(FinancialAccount)
+            .filter(FinancialAccount.id == account_id, FinancialAccount.user_id == current_user.id)
+            .first()
+        )
+        if not user_acc:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Financial account not found",
+            )
+
     contents = await _read_upload(file)
     try:
         result = parse_statement(
@@ -502,16 +515,6 @@ async def upload_statement(
     db.refresh(statement_record)  # populates statement_record.id and .uploaded_at from the DB
 
     # Ingest statement transactions into normalized Transaction rows
-    # Verify account ownership if account_id is explicitly passed
-    if account_id is not None:
-        user_acc = (
-            db.query(FinancialAccount)
-            .filter(FinancialAccount.id == account_id, FinancialAccount.user_id == current_user.id)
-            .first()
-        )
-        if not user_acc:
-            account_id = None  # Fallback safely to unassigned imported account
-
     ingest_statement_transactions(db, statement_record, account_id=account_id)
 
     return response

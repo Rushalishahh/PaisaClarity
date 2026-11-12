@@ -476,6 +476,11 @@ def get_llm_provider() -> BaseLLMProvider:
 
     # In test environment or when explicitly requested via MOCK_AI=true
     if env == "test" or mock_flag in ("1", "true", "yes"):
+        if env in ("production", "prod") or os.environ.get("RENDER"):
+            raise RuntimeError(
+                "MOCK_AI is strictly prohibited in production environments. "
+                "A verified GEMINI_API_KEY or OPENAI_API_KEY is required."
+            )
         return MockLLMProvider()
 
     gemini_key = os.environ.get("GEMINI_API_KEY")

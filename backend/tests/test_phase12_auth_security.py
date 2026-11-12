@@ -274,3 +274,31 @@ def test_cross_user_report_exports_and_ai_conversations_isolation(users_fixture)
     # User B cannot access User A's conversation
     conv_res_b = client.get(f"/ai/conversations/{conv_a.id}", headers=headers_b)
     assert conv_res_b.status_code == 404
+
+
+def test_upload_statement_unauthorized_account_rejected(users_fixture):
+    client = users_fixture["client"]
+    headers_a = users_fixture["headers_a"]
+    headers_b = users_fixture["headers_b"]
+
+    # User A creates an account
+    res_a = client.post(
+        "/accounts",
+        headers=headers_a,
+        json={"name": "Alpha Account", "account_type": "savings", "opening_balance": "1000.00"},
+    )
+    assert res_a.status_code == 201
+    acc_a_id = res_a.json()["id"]
+
+    # User B attempts to upload statement explicitly attaching to User A's account
+    csv_content = b"Date,Description,Amount\n2026-03-01,Groceries,500.00\n"
+    res_upload = client.post(
+        "/upload-statement",
+        headers=headers_b,
+        data={"account_id": acc_a_id},
+        files={"file": ("stmt.csv", csv_content, "text/csv")},
+    )
+    # Must fail with 404 Financial account not found, NOT 200 silent fallback
+    assert res_upload.status_code == 404
+    assert "Financial account not found" in res_upload.json()["detail"]
+
