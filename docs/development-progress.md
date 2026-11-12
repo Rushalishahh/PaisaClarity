@@ -15,21 +15,23 @@ This document tracks completed engineering phases, automated test metrics, archi
 | **Phase 7: Repo & Deploy Quality** | `phase-7-repo-quality` | **Merged to master** | **90 passed** (+6 tests) | • Additive health check probes: `GET /health` (liveness) and `GET /health/ready` (readiness with `SELECT 1`).<br>• Gated runtime table creation behind `AUTO_CREATE_TABLES` (default `true` preserves current behavior).<br>• Zero-drift verification between Alembic migrations and SQLAlchemy models.<br>• Slim, non-root `Dockerfile`, `.dockerignore`, and local `docker-compose.yml`.<br>• GitHub Actions CI pipeline (`backend` tests/coverage, `migrations` on PostgreSQL 16, `frontend` build).<br>• Comprehensive root `README.md` and production transition guide `docs/migrations-plan.md`. |
 | **Phase 5: Database Foundation** | `phase-5-database-foundation` | **Ready for Review** | **98 passed** (+8 tests) | • Normalized models: `FinancialAccount`, `Category`, `Transaction` with explicit foreign keys, indexes, and cascades.<br>• Alembic migration `e8b1c4f2a9d0` with zero schema drift against SQLAlchemy models and reversible `downgrade()`.<br>• Pre-seeded 17 standard system categories.<br>• Explicit `Numeric(14, 2)` monetary handling with `ROUND_HALF_UP` quantization.<br>• Repeatable, idempotent backfill pipeline (`backend/backfill.py`) using `(statement_id, source_row_index)` unique constraints.<br>• Unreconciled placeholder accounts (`account_type="imported"`, `is_reconciled=False`) for historical unassigned statements.<br>• Transfer grouping semantics (`transfer_group_id` UUID) and category deletion safety (`ON DELETE SET NULL`). |
 | **Phase 6: Transaction & Account Management** | `phase-6-transaction-management` | **Ready for Review** | **107 passed** (+9 tests) | • Complete REST APIs for accounts (`/accounts`), transactions (`/transactions`), transfers (`/transactions/transfer`), and categories (`/categories`).<br>• Automatic statement ingestion: statement uploads immediately create normalized `Transaction` rows with overlap detection.<br>• Calculated account balances derived from opening balances and movements; unreconciled accounts safely report unverified balance status.<br>• Account reconciliation workflows (in-place verification and transaction merging).<br>• Real-time analytics integration: manual transactions and category corrections immediately update spending charts and insights.<br>• Modern React UI pages: `/transactions` (search, multi-filters, pagination, category correction, add/transfer modals) and `/accounts` (net worth stats, cards, reconciliation modal, archive/delete). |
+| **Phase 7: Budgets & Savings Goals** | `phase-7-budgets-and-goals` | **Ready for Review** | **112 passed** (+5 tests) | • Normalized models: `Budget`, `BudgetAllocation`, `SavingsGoal`, `SavingsContribution`.<br>• Alembic migration `f7a8b9c0d1e2` with zero schema drift and reversible `downgrade()`.<br>• Full Budget REST APIs (`/budgets`, `/budgets/current`, `/budgets/performance/comparison`): monthly limits, category-specific allocations, utilization percentage, warning threshold alert detection, actual expense aggregation excluding transfers and overlap duplicates.<br>• Full Savings Goals REST APIs (`/goals`, `/goals/{id}/contributions`): target tracking, deposit/withdrawal ledger, client and server-side over-withdrawal prevention, monthly savings pace estimation, archive/unarchive.<br>• Modern React UI pages: `/budgets` (month navigator, KPI cards, allocation cards with badges and progress bars, create/edit/delete modals) and `/savings-goals` (cards, progress bars, contribution modal, ledger modal, archive/delete).<br>• Dashboard integration: Current Month Budget utilization widget and Active Savings Goals summary widget. |
 
 ---
 
 ## 2. Test Results & Quality Metrics
 
-- **Backend Pytest Suite**: **107 passed, 3 warnings in ~41s** (100% pass rate).
+- **Backend Pytest Suite**: **112 passed, 3 warnings in ~44s** (100% pass rate).
   - `test_config_safety.py`: 10 tests passing
   - `test_categorizer_accuracy.py`: 6 tests passing
   - `test_auth_hardening.py`: 13 tests passing
   - `test_repo_quality.py`: 6 tests passing
   - `test_database_foundation.py`: 8 tests passing
   - `test_phase6_management.py`: 9 tests passing
+  - `test_phase7_budgets_goals.py`: 5 tests passing
   - Existing functional tests (`test_auth.py`, `test_ingest.py`, `test_insights.py`, etc.): 55 tests passing
-- **Frontend Production Build**: `npm run build` completed successfully (`vite build` $\rightarrow$ `dist/` compiled in ~2.2s).
-- **Alembic Schema Drift Check**: Ran all 5 migration revisions (`e8b1c4f2a9d0`) against a fresh disposable database; compared with `Base.metadata`. **Zero schema drift detected** (`diff: []`). Downgrade and re-upgrade verified cleanly.
+- **Frontend Production Build**: `npm run build` completed successfully (`vite build` $\rightarrow$ `dist/` compiled in ~4.6s).
+- **Alembic Schema Drift Check**: Ran all 6 migration revisions (`f7a8b9c0d1e2`) against a fresh disposable database; compared with `Base.metadata`. **Zero schema drift detected** (`diff: []`). Downgrade and re-upgrade verified cleanly.
 
 ---
 

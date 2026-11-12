@@ -68,8 +68,9 @@ def run_migrations_online() -> None:
     and associate a connection with the context.
 
     """
-    db_url = os.getenv("DATABASE_URL")
-    config.set_main_option("sqlalchemy.url", db_url.replace("%", "%%"))
+    db_url = os.getenv("ALEMBIC_DATABASE_URL") or os.getenv("DATABASE_URL") or config.get_main_option("sqlalchemy.url")
+    if db_url:
+        config.set_main_option("sqlalchemy.url", db_url.replace("%", "%%"))
     connectable = engine_from_config(
         config.get_section(config.config_ini_section, {}),
         prefix="sqlalchemy.",

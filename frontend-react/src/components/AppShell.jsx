@@ -66,10 +66,31 @@ function HistoryIcon({ className = 'w-5 h-5' }) {
   )
 }
 
+function BudgetsIcon({ className = 'w-5 h-5' }) {
+  return (
+    <svg viewBox="0 0 20 20" fill="none" className={className} aria-hidden="true">
+      <path d="M4 4h12a2 2 0 012 2v8a2 2 0 01-2 2H4a2 2 0 01-2-2V6a2 2 0 012-2z" stroke="currentColor" strokeWidth="1.6" />
+      <path d="M2 9h16M7 13h2" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+    </svg>
+  )
+}
+
+function GoalsIcon({ className = 'w-5 h-5' }) {
+  return (
+    <svg viewBox="0 0 20 20" fill="none" className={className} aria-hidden="true">
+      <circle cx="10" cy="10" r="7" stroke="currentColor" strokeWidth="1.6" />
+      <circle cx="10" cy="10" r="3.5" stroke="currentColor" strokeWidth="1.6" />
+      <circle cx="10" cy="10" r="1" fill="currentColor" />
+    </svg>
+  )
+}
+
 const NAV_ITEMS = [
   { to: '/dashboard', label: 'Dashboard', Icon: DashboardIcon },
   { to: '/transactions', label: 'Transactions', Icon: TransactionsIcon },
   { to: '/accounts', label: 'Accounts', Icon: AccountsIcon },
+  { to: '/budgets', label: 'Budgets', Icon: BudgetsIcon },
+  { to: '/savings-goals', label: 'Savings Goals', Icon: GoalsIcon },
   { to: '/investments', label: 'Investments', Icon: InvestmentsIcon },
   { to: '/history', label: 'History', Icon: HistoryIcon },
 ]

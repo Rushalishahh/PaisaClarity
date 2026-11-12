@@ -14,6 +14,7 @@ Requirements satisfied:
    assigns semantic classification ('income', 'expense', 'transfer', 'investment').
 """
 
+from collections import Counter
 from decimal import Decimal, ROUND_HALF_UP
 import datetime
 from sqlalchemy.orm import Session
@@ -224,19 +225,19 @@ def ingest_statement_transactions(
     # Pre-cache system + user categories
     categories_map = {c.name.lower(): c for c in db.query(Category).all()}
 
-    # Build seen_keys from earlier statements of this user to detect overlap
+    # Build seen_key_counts from earlier statements of this user using multiset counting
     previous_statements = (
         db.query(Statement)
         .filter(Statement.user_id == uid, Statement.id != statement.id)
         .order_by(Statement.uploaded_at.asc())
         .all()
     )
-    seen_keys = set()
+    seen_key_counts = Counter()
     for prev in previous_statements:
         for r in ((prev.result or {}).get("transactions") or []):
             try:
                 k = transaction_key(r.get("date"), r.get("description"), r.get("amount"))
-                seen_keys.add(f"{k[0]}_{k[1]}_{k[2]}")
+                seen_key_counts[f"{k[0]}_{k[1]}_{k[2]}"] += 1
             except (TypeError, ValueError):
                 continue
 
@@ -249,7 +250,7 @@ def ingest_statement_transactions(
         .all()
     }
 
-    local_keys = set()
+    local_key_counts = Counter()
     rows_inserted = 0
     rows_skipped_existing = 0
     overlap_detected = 0
@@ -278,18 +279,17 @@ def ingest_statement_transactions(
         t_key_tuple = transaction_key(date_val, desc, amount_dec)
         t_key_str = f"{t_key_tuple[0]}_{t_key_tuple[1]}_{t_key_tuple[2]}"
 
-        # Overlap detection:
-        # Intra-file repeat: kept as real transaction (is_overlap=False)
-        # Cross-file repeat: flagged as is_overlap=True
-        if t_key_str in local_keys:
-            is_overlap = False
-        elif t_key_str in seen_keys:
+        # Multiset Overlap Detection:
+        # Count this occurrence within the current file. If this occurrence count
+        # does not exceed the count seen in previous statements, it's an overlap duplicate.
+        # If it exceeds the previous count, it is a legitimate purchase (not in the earlier file).
+        local_key_counts[t_key_str] += 1
+        occurrence = local_key_counts[t_key_str]
+        if occurrence <= seen_key_counts[t_key_str]:
             is_overlap = True
             overlap_detected += 1
         else:
-            seen_keys.add(t_key_str)
             is_overlap = False
-        local_keys.add(t_key_str)
 
         tx = Transaction(
             user_id=uid,

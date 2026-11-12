@@ -5,6 +5,8 @@ import Signup from './pages/Signup'
 import Dashboard from './pages/Dashboard'
 import Transactions from './pages/Transactions'
 import Accounts from './pages/Accounts'
+import Budgets from './pages/Budgets'
+import SavingsGoals from './pages/SavingsGoals'
 import History from './pages/History'
 import Investments from './pages/Investments'
 import ProtectedRoute from './components/ProtectedRoute'
@@ -37,6 +39,22 @@ function App() {
           element={
             <ProtectedRoute>
               <Accounts />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/budgets"
+          element={
+            <ProtectedRoute>
+              <Budgets />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/savings-goals"
+          element={
+            <ProtectedRoute>
+              <SavingsGoals />
             </ProtectedRoute>
           }
         />

@@ -1,5 +1,5 @@
 from sqlalchemy import (
-    Column, Integer, String, DateTime, ForeignKey, JSON, Numeric, Date, Boolean,
+    Column, Integer, String, Text, DateTime, ForeignKey, JSON, Numeric, Date, Boolean,
     UniqueConstraint, Index
 )
 from sqlalchemy.sql import func
@@ -29,6 +29,8 @@ class User(Base):
     accounts = relationship("FinancialAccount", back_populates="user")
     custom_categories = relationship("Category", back_populates="user")
     transactions = relationship("Transaction", back_populates="user")
+    budgets = relationship("Budget", back_populates="user", cascade="all, delete-orphan")
+    savings_goals = relationship("SavingsGoal", back_populates="user", cascade="all, delete-orphan")
 
 
 class Statement(Base):
@@ -184,3 +186,95 @@ class Transaction(Base):
     account = relationship("FinancialAccount", back_populates="transactions")
     statement = relationship("Statement", back_populates="transactions")
     category_rel = relationship("Category", back_populates="transactions")
+
+
+# ---------------------------------------------------------------------------
+# Phase 7: Budget Management and Savings Goals
+# ---------------------------------------------------------------------------
+
+class Budget(Base):
+    __tablename__ = "budgets"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    month = Column(Integer, nullable=False)  # 1-12
+    year = Column(Integer, nullable=False)   # e.g. 2026
+    total_budget_limit = Column(Numeric(14, 2), nullable=True)  # Optional overall monthly limit
+    warning_threshold = Column(Numeric(5, 2), nullable=False, default=80.00)  # e.g. 80.0%
+    is_archived = Column(Boolean, nullable=False, default=False, index=True)
+
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
+
+    __table_args__ = (
+        UniqueConstraint("user_id", "month", "year", name="uq_budget_user_month_year"),
+        Index("ix_budgets_user_period", "user_id", "year", "month"),
+    )
+
+    user = relationship("User", back_populates="budgets")
+    allocations = relationship("BudgetAllocation", back_populates="budget", cascade="all, delete-orphan")
+
+
+class BudgetAllocation(Base):
+    __tablename__ = "budget_allocations"
+
+    id = Column(Integer, primary_key=True, index=True)
+    budget_id = Column(Integer, ForeignKey("budgets.id", ondelete="CASCADE"), nullable=False, index=True)
+    category_id = Column(Integer, ForeignKey("categories.id", ondelete="SET NULL"), nullable=True, index=True)
+    category_name = Column(String(100), nullable=False)  # Denormalized category name
+    allocated_amount = Column(Numeric(14, 2), nullable=False, default=0.00)
+    notes = Column(String(255), nullable=True)
+
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
+
+    __table_args__ = (
+        UniqueConstraint("budget_id", "category_name", name="uq_budget_allocation_category"),
+    )
+
+    budget = relationship("Budget", back_populates="allocations")
+    category = relationship("Category")
+
+
+class SavingsGoal(Base):
+    __tablename__ = "savings_goals"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    name = Column(String(100), nullable=False)
+    target_amount = Column(Numeric(14, 2), nullable=False)
+    target_date = Column(Date, nullable=True)  # Optional target deadline
+    category = Column(String(50), nullable=True)  # Emergency, Travel, Vehicle, Gadget, etc.
+    notes = Column(Text, nullable=True)
+    is_archived = Column(Boolean, nullable=False, default=False, index=True)
+
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
+
+    __table_args__ = (
+        Index("ix_savings_goals_user", "user_id", "is_archived"),
+    )
+
+    user = relationship("User", back_populates="savings_goals")
+    contributions = relationship("SavingsContribution", back_populates="goal", cascade="all, delete-orphan")
+
+
+class SavingsContribution(Base):
+    __tablename__ = "savings_contributions"
+
+    id = Column(Integer, primary_key=True, index=True)
+    goal_id = Column(Integer, ForeignKey("savings_goals.id", ondelete="CASCADE"), nullable=False, index=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    amount = Column(Numeric(14, 2), nullable=False)
+    contribution_date = Column(Date, nullable=False)
+    contribution_type = Column(String(20), nullable=False, default="deposit")  # deposit or withdrawal
+    notes = Column(String(255), nullable=True)
+
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+    __table_args__ = (
+        Index("ix_savings_contributions_goal_date", "goal_id", "contribution_date"),
+    )
+
+    goal = relationship("SavingsGoal", back_populates="contributions")
+    user = relationship("User")

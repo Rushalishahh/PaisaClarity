@@ -293,3 +293,251 @@ class PaginatedTransactionsResponse(BaseModel):
     page: int
     page_size: int
     pages: int
+
+
+# ---------------------------------------------------------------------------
+# Phase 7: Budget & Savings Goal Schemas
+# ---------------------------------------------------------------------------
+
+class BudgetAllocationCreate(BaseModel):
+    category_id: int | None = None
+    category_name: str
+    allocated_amount: Decimal
+    notes: str | None = None
+
+    @field_validator("category_name")
+    @classmethod
+    def validate_category_name(cls, v: str) -> str:
+        s = v.strip()
+        if not s:
+            raise ValueError("Category name cannot be empty")
+        return s
+
+    @field_validator("allocated_amount")
+    @classmethod
+    def validate_allocated_amount(cls, v: Decimal) -> Decimal:
+        if v < Decimal("0.00"):
+            raise ValueError("Allocated amount cannot be negative")
+        return v.quantize(Decimal("0.01"))
+
+
+class BudgetCreate(BaseModel):
+    month: int
+    year: int
+    total_budget_limit: Decimal | None = None
+    warning_threshold: Decimal = Decimal("80.00")
+    allocations: list[BudgetAllocationCreate] = []
+
+    @field_validator("month")
+    @classmethod
+    def validate_month(cls, v: int) -> int:
+        if v < 1 or v > 12:
+            raise ValueError("Month must be between 1 and 12")
+        return v
+
+    @field_validator("year")
+    @classmethod
+    def validate_year(cls, v: int) -> int:
+        if v < 2000 or v > 2100:
+            raise ValueError("Year must be between 2000 and 2100")
+        return v
+
+    @field_validator("total_budget_limit")
+    @classmethod
+    def validate_limit(cls, v: Decimal | None) -> Decimal | None:
+        if v is not None:
+            if v < Decimal("0.00"):
+                raise ValueError("Budget limit cannot be negative")
+            return v.quantize(Decimal("0.01"))
+        return v
+
+    @field_validator("warning_threshold")
+    @classmethod
+    def validate_warning_threshold(cls, v: Decimal) -> Decimal:
+        if v < Decimal("0.00") or v > Decimal("100.00"):
+            raise ValueError("Warning threshold must be between 0 and 100")
+        return v.quantize(Decimal("0.01"))
+
+
+class BudgetUpdate(BaseModel):
+    total_budget_limit: Decimal | None = None
+    warning_threshold: Decimal | None = None
+    is_archived: bool | None = None
+    allocations: list[BudgetAllocationCreate] | None = None
+
+    @field_validator("total_budget_limit")
+    @classmethod
+    def validate_limit(cls, v: Decimal | None) -> Decimal | None:
+        if v is not None:
+            if v < Decimal("0.00"):
+                raise ValueError("Budget limit cannot be negative")
+            return v.quantize(Decimal("0.01"))
+        return v
+
+    @field_validator("warning_threshold")
+    @classmethod
+    def validate_threshold(cls, v: Decimal | None) -> Decimal | None:
+        if v is not None:
+            if v < Decimal("0.00") or v > Decimal("100.00"):
+                raise ValueError("Warning threshold must be between 0 and 100")
+            return v.quantize(Decimal("0.01"))
+        return v
+
+
+class BudgetAllocationResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    budget_id: int
+    category_id: int | None
+    category_name: str
+    allocated_amount: Decimal
+    actual_spent: Decimal = Decimal("0.00")
+    remaining: Decimal = Decimal("0.00")
+    utilization_pct: float = 0.0
+    is_exceeded: bool = False
+    is_warning: bool = False
+    notes: str | None = None
+    created_at: datetime
+    updated_at: datetime
+
+
+class BudgetResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    user_id: int
+    month: int
+    year: int
+    total_budget_limit: Decimal | None
+    total_allocated: Decimal
+    total_spent: Decimal
+    total_remaining: Decimal
+    overall_utilization_pct: float
+    overall_is_exceeded: bool
+    warning_threshold: Decimal
+    is_archived: bool
+    allocations: list[BudgetAllocationResponse]
+    created_at: datetime
+    updated_at: datetime
+
+
+class BudgetPerformanceMonth(BaseModel):
+    month: int
+    year: int
+    total_budget_limit: Decimal | None
+    total_allocated: Decimal
+    total_spent: Decimal
+    overall_utilization_pct: float
+    is_exceeded: bool
+
+
+class BudgetPerformanceResponse(BaseModel):
+    history: list[BudgetPerformanceMonth]
+
+
+class SavingsContributionCreate(BaseModel):
+    amount: Decimal
+    contribution_date: dt.date
+    contribution_type: str = "deposit"  # "deposit" | "withdrawal"
+    notes: str | None = None
+
+    @field_validator("amount")
+    @classmethod
+    def validate_amount(cls, v: Decimal) -> Decimal:
+        if v <= Decimal("0.00"):
+            raise ValueError("Contribution amount must be greater than zero")
+        return v.quantize(Decimal("0.01"))
+
+    @field_validator("contribution_type")
+    @classmethod
+    def validate_type(cls, v: str) -> str:
+        s = v.strip().lower()
+        if s not in ("deposit", "withdrawal"):
+            raise ValueError("Contribution type must be 'deposit' or 'withdrawal'")
+        return s
+
+
+class SavingsContributionResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    goal_id: int
+    user_id: int
+    amount: Decimal
+    contribution_date: dt.date
+    contribution_type: str
+    notes: str | None
+    created_at: datetime
+
+
+class SavingsGoalCreate(BaseModel):
+    name: str
+    target_amount: Decimal
+    target_date: dt.date | None = None
+    category: str | None = None
+    notes: str | None = None
+
+    @field_validator("name")
+    @classmethod
+    def validate_name(cls, v: str) -> str:
+        s = v.strip()
+        if not s:
+            raise ValueError("Goal name cannot be empty")
+        return s
+
+    @field_validator("target_amount")
+    @classmethod
+    def validate_target_amount(cls, v: Decimal) -> Decimal:
+        if v <= Decimal("0.00"):
+            raise ValueError("Target amount must be greater than zero")
+        return v.quantize(Decimal("0.01"))
+
+
+class SavingsGoalUpdate(BaseModel):
+    name: str | None = None
+    target_amount: Decimal | None = None
+    target_date: dt.date | None = None
+    category: str | None = None
+    notes: str | None = None
+    is_archived: bool | None = None
+
+    @field_validator("name")
+    @classmethod
+    def validate_name(cls, v: str | None) -> str | None:
+        if v is not None:
+            s = v.strip()
+            if not s:
+                raise ValueError("Goal name cannot be empty")
+            return s
+        return v
+
+    @field_validator("target_amount")
+    @classmethod
+    def validate_target_amount(cls, v: Decimal | None) -> Decimal | None:
+        if v is not None:
+            if v <= Decimal("0.00"):
+                raise ValueError("Target amount must be greater than zero")
+            return v.quantize(Decimal("0.01"))
+        return v
+
+
+class SavingsGoalResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    user_id: int
+    name: str
+    target_amount: Decimal
+    target_date: dt.date | None
+    category: str | None
+    notes: str | None
+    is_archived: bool
+    total_saved: Decimal
+    remaining_target: Decimal
+    completion_pct: float
+    is_completed: bool
+    monthly_savings_needed: Decimal | None
+    contributions: list[SavingsContributionResponse] = []
+    created_at: datetime
+    updated_at: datetime

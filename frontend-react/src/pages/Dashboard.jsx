@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { api } from '../api'
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell,
@@ -87,9 +88,39 @@ function Dashboard() {
     }
   }
 
+  const [currentBudget, setCurrentBudget] = useState(null)
+  const [goalsSummary, setGoalsSummary] = useState(null)
+
   useEffect(() => {
     loadInsights('all')
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  useEffect(() => {
+    let cancelled = false
+    async function fetchBudgetAndGoals() {
+      try {
+        const b = await api('/budgets/current')
+        if (!cancelled) setCurrentBudget(b)
+      } catch {
+        // No current budget set
+      }
+      try {
+        const gList = await api('/goals?include_archived=false')
+        if (!cancelled && gList && gList.length > 0) {
+          const totalSaved = gList.reduce((acc, g) => acc + Number(g.total_saved || 0), 0)
+          const totalTarget = gList.reduce((acc, g) => acc + Number(g.target_amount || 0), 0)
+          const pct = totalTarget > 0 ? Math.min(100, Math.round((totalSaved / totalTarget) * 100)) : 0
+          setGoalsSummary({ count: gList.length, totalSaved, totalTarget, pct })
+        }
+      } catch {
+        // Ignore goals fetch failure
+      }
+    }
+    fetchBudgetAndGoals()
+    return () => {
+      cancelled = true
+    }
   }, [])
 
   const chartData = data
@@ -174,6 +205,78 @@ function Dashboard() {
               <StatCard label="Spend" value={formatINR(data.savings_summary.total_spend)} accent="text-coral" />
               <StatCard label="Saved" value={formatINR(data.savings_summary.total_saved)} />
               <StatCard label="Savings Rate" value={`${data.savings_summary.savings_rate_pct}%`} accent="text-mint" />
+            </div>
+
+            {/* Budget & Goals Overview */}
+            <div className="grid sm:grid-cols-2 gap-4">
+              {currentBudget ? (
+                <Card>
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-xs font-semibold uppercase tracking-wider text-gray-400">Current Month Budget</span>
+                    <Link to="/budgets" className="text-xs text-mint hover:underline font-semibold">Manage →</Link>
+                  </div>
+                  <div className="flex items-baseline justify-between mt-1">
+                    <span className="text-xl font-bold text-white">{formatINR(currentBudget.total_spent)}</span>
+                    <span className="text-xs text-gray-400">
+                      limit: {formatINR(currentBudget.total_budget_limit || currentBudget.total_allocated)}
+                    </span>
+                  </div>
+                  <div className="w-full bg-navy rounded-full h-2 mt-2.5 overflow-hidden">
+                    <div
+                      className={`h-2 rounded-full transition-all duration-500 ${
+                        currentBudget.overall_is_exceeded
+                          ? 'bg-rose-500'
+                          : currentBudget.overall_utilization_pct >= Number(currentBudget.warning_threshold)
+                          ? 'bg-amber-400'
+                          : 'bg-mint'
+                      }`}
+                      style={{ width: `${Math.min(100, Math.max(0, currentBudget.overall_utilization_pct))}%` }}
+                    />
+                  </div>
+                  <div className="flex justify-between items-center text-xs mt-2 text-gray-400">
+                    <span>{currentBudget.overall_utilization_pct}% utilized</span>
+                    <span className={currentBudget.total_remaining < 0 ? 'text-rose-400 font-semibold' : 'text-emerald-400 font-semibold'}>
+                      {formatINR(currentBudget.total_remaining)} left
+                    </span>
+                  </div>
+                </Card>
+              ) : (
+                <Card>
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-xs font-semibold uppercase tracking-wider text-gray-400">Current Month Budget</span>
+                    <Link to="/budgets" className="text-xs text-mint hover:underline font-semibold">+ Set Budget →</Link>
+                  </div>
+                  <p className="text-xs text-gray-400 mt-2">No budget set for this month. Set spending limits by category.</p>
+                </Card>
+              )}
+
+              {goalsSummary ? (
+                <Card>
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-xs font-semibold uppercase tracking-wider text-gray-400">Active Savings Goals</span>
+                    <Link to="/savings-goals" className="text-xs text-mint hover:underline font-semibold">View Goals →</Link>
+                  </div>
+                  <div className="flex items-baseline justify-between mt-1">
+                    <span className="text-xl font-bold text-mint">{formatINR(goalsSummary.totalSaved)}</span>
+                    <span className="text-xs text-gray-400">of {formatINR(goalsSummary.totalTarget)}</span>
+                  </div>
+                  <div className="w-full bg-navy rounded-full h-2 mt-2.5 overflow-hidden">
+                    <div className="h-2 rounded-full bg-mint transition-all duration-500" style={{ width: `${goalsSummary.pct}%` }} />
+                  </div>
+                  <div className="flex justify-between items-center text-xs mt-2 text-gray-400">
+                    <span>{goalsSummary.count} goal{goalsSummary.count > 1 ? 's' : ''} in progress</span>
+                    <span className="text-white font-medium">{goalsSummary.pct}% completed</span>
+                  </div>
+                </Card>
+              ) : (
+                <Card>
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-xs font-semibold uppercase tracking-wider text-gray-400">Savings Goals</span>
+                    <Link to="/savings-goals" className="text-xs text-mint hover:underline font-semibold">+ Add Goal →</Link>
+                  </div>
+                  <p className="text-xs text-gray-400 mt-2">Create savings targets to track deposits and reach your financial goals.</p>
+                </Card>
+              )}
             </div>
 
             {/* Category chart */}

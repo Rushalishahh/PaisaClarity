@@ -241,11 +241,32 @@ def reconcile_account(
         if target.id == account.id:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Cannot merge an account into itself")
 
-        # Reassign all transactions from this account to target
-        db.query(Transaction).filter(Transaction.account_id == account.id).update(
-            {"account_id": target.id},
-            synchronize_session=False,
+        # Query existing transactions in target account to prevent double counting
+        target_txs = (
+            db.query(Transaction)
+            .filter(Transaction.account_id == target.id, Transaction.user_id == current_user.id)
+            .all()
         )
+        target_keys = {
+            (t.date, t.transaction_key, t.amount, t.type)
+            for t in target_txs
+            if not (t.import_metadata or {}).get("is_overlap")
+        }
+
+        source_txs = (
+            db.query(Transaction)
+            .filter(Transaction.account_id == account.id, Transaction.user_id == current_user.id)
+            .all()
+        )
+        for s_tx in source_txs:
+            s_key = (s_tx.date, s_tx.transaction_key, s_tx.amount, s_tx.type)
+            if s_key in target_keys:
+                meta = dict(s_tx.import_metadata or {})
+                meta["is_overlap"] = True
+                meta["merged_duplicate"] = True
+                s_tx.import_metadata = meta
+            s_tx.account_id = target.id
+
         # Archive the source imported account
         account.is_archived = True
         account.is_reconciled = True

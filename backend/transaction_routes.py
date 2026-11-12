@@ -396,6 +396,25 @@ def update_transaction(
     # Recompute key
     tx.transaction_key = _compute_tx_key(tx.date, tx.description, tx.amount)
 
+    # Synchronize paired transfer leg if this transaction is part of a transfer
+    if tx.transfer_group_id:
+        paired_tx = (
+            db.query(Transaction)
+            .filter(
+                Transaction.user_id == current_user.id,
+                Transaction.transfer_group_id == tx.transfer_group_id,
+                Transaction.id != tx.id,
+            )
+            .first()
+        )
+        if paired_tx:
+            if tx_in.amount is not None:
+                paired_tx.amount = tx.amount
+            if tx_in.date is not None:
+                paired_tx.date = tx.date
+                paired_tx.value_date = tx.value_date
+            paired_tx.transaction_key = _compute_tx_key(paired_tx.date, paired_tx.description, paired_tx.amount)
+
     db.commit()
     db.refresh(tx)
     return tx
