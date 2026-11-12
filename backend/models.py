@@ -31,6 +31,9 @@ class User(Base):
     transactions = relationship("Transaction", back_populates="user")
     budgets = relationship("Budget", back_populates="user", cascade="all, delete-orphan")
     savings_goals = relationship("SavingsGoal", back_populates="user", cascade="all, delete-orphan")
+    recurring_payments = relationship("RecurringPayment", back_populates="user", cascade="all, delete-orphan")
+    alerts = relationship("FinancialAlert", back_populates="user", cascade="all, delete-orphan")
+    alert_preferences = Column(JSON, nullable=True)
 
 
 class Statement(Base):
@@ -278,3 +281,65 @@ class SavingsContribution(Base):
 
     goal = relationship("SavingsGoal", back_populates="contributions")
     user = relationship("User")
+
+
+# ---------------------------------------------------------------------------
+# Phase 8: Cash Flow Intelligence, Recurring Payments, and Financial Alerts
+# ---------------------------------------------------------------------------
+
+class RecurringPayment(Base):
+    __tablename__ = "recurring_payments"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    account_id = Column(Integer, ForeignKey("financial_accounts.id", ondelete="SET NULL"), nullable=True, index=True)
+    name = Column(String(200), nullable=False)
+    category = Column(String(100), nullable=False, default="Bills")
+    average_amount = Column(Numeric(14, 2), nullable=False)
+    frequency = Column(String(50), nullable=False, default="monthly")  # monthly, weekly, quarterly, yearly
+    status = Column(String(20), nullable=False, default="detected")   # detected, confirmed, rejected, inactive
+    next_expected_date = Column(Date, nullable=True)
+    last_payment_date = Column(Date, nullable=True)
+    first_seen_date = Column(Date, nullable=True)
+    occurrence_count = Column(Integer, nullable=False, default=1)
+    is_auto_detected = Column(Boolean, nullable=False, default=True)
+    notes = Column(Text, nullable=True)
+
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
+
+    __table_args__ = (
+        Index("ix_recurring_user_status", "user_id", "status"),
+        Index("ix_recurring_user_next_date", "user_id", "next_expected_date"),
+    )
+
+    user = relationship("User", back_populates="recurring_payments")
+    account = relationship("FinancialAccount")
+
+
+class FinancialAlert(Base):
+    __tablename__ = "financial_alerts"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    alert_type = Column(String(50), nullable=False)  # budget_warning, budget_exceeded, unusual_spending, expense_surge, upcoming_recurring, savings_goal_behind
+    severity = Column(String(20), nullable=False, default="info")  # info, warning, critical
+    title = Column(String(200), nullable=False)
+    message = Column(Text, nullable=False)
+    related_entity_type = Column(String(50), nullable=True)  # budget, goal, transaction, recurring, account
+    related_entity_id = Column(Integer, nullable=True)
+    dedup_key = Column(String(255), nullable=False, index=True)
+
+    is_read = Column(Boolean, nullable=False, default=False)
+    is_dismissed = Column(Boolean, nullable=False, default=False, index=True)
+
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    read_at = Column(DateTime(timezone=True), nullable=True)
+    dismissed_at = Column(DateTime(timezone=True), nullable=True)
+
+    __table_args__ = (
+        UniqueConstraint("user_id", "dedup_key", name="uq_alert_user_dedup"),
+        Index("ix_alerts_user_unread", "user_id", "is_dismissed", "is_read"),
+    )
+
+    user = relationship("User", back_populates="alerts")

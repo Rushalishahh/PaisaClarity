@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { api } from '../api'
 import {
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell,
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, Legend,
 } from 'recharts'
 import AppShell from '../components/AppShell'
 import { Card, EmptyState } from '../components/UI'
@@ -90,6 +90,9 @@ function Dashboard() {
 
   const [currentBudget, setCurrentBudget] = useState(null)
   const [goalsSummary, setGoalsSummary] = useState(null)
+  const [cashFlow, setCashFlow] = useState(null)
+  const [topAlerts, setTopAlerts] = useState([])
+  const [upcomingBills, setUpcomingBills] = useState([])
 
   useEffect(() => {
     loadInsights('all')
@@ -98,7 +101,7 @@ function Dashboard() {
 
   useEffect(() => {
     let cancelled = false
-    async function fetchBudgetAndGoals() {
+    async function fetchDashboardExtras() {
       try {
         const b = await api('/budgets/current')
         if (!cancelled) setCurrentBudget(b)
@@ -116,8 +119,26 @@ function Dashboard() {
       } catch {
         // Ignore goals fetch failure
       }
+      try {
+        const cf = await api('/analytics/cash-flow')
+        if (!cancelled) setCashFlow(cf)
+      } catch {
+        // Non-fatal
+      }
+      try {
+        const al = await api('/alerts?is_dismissed=false&is_read=false')
+        if (!cancelled && al?.items) setTopAlerts(al.items.slice(0, 3))
+      } catch {
+        // Non-fatal
+      }
+      try {
+        const rec = await api('/recurring?include_inactive=false')
+        if (!cancelled && rec?.upcoming_payments) setUpcomingBills(rec.upcoming_payments.slice(0, 3))
+      } catch {
+        // Non-fatal
+      }
     }
-    fetchBudgetAndGoals()
+    fetchDashboardExtras()
     return () => {
       cancelled = true
     }
@@ -177,6 +198,30 @@ function Dashboard() {
             </div>
           </div>
         </div>
+
+        {/* Financial Alerts Banner */}
+        {topAlerts.length > 0 && (
+          <div className="mb-6 p-4 bg-navy-light border border-amber-500/30 rounded-2xl flex items-start justify-between gap-3 shadow-lg">
+            <div className="flex items-start gap-3">
+              <span className="text-xl mt-0.5">🔔</span>
+              <div>
+                <div className="flex items-center gap-2">
+                  <h4 className="text-sm font-semibold text-white">Active Alerts ({topAlerts.length})</h4>
+                  <Link to="/alerts" className="text-xs text-mint hover:underline font-medium">View All →</Link>
+                </div>
+                <div className="mt-1.5 space-y-1">
+                  {topAlerts.map((a) => (
+                    <p key={a.id} className="text-xs text-gray-300">
+                      <span className={`font-semibold ${a.severity === 'critical' ? 'text-rose-400' : a.severity === 'warning' ? 'text-amber-400' : 'text-mint'}`}>
+                        [{a.severity.toUpperCase()}]
+                      </span> {a.title}: {a.message}
+                    </p>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Statement upload: drag-drop, preview-confirm, password & mapping recovery */}
         <UploadStatement onImported={setData} />
@@ -277,6 +322,63 @@ function Dashboard() {
                   <p className="text-xs text-gray-400 mt-2">Create savings targets to track deposits and reach your financial goals.</p>
                 </Card>
               )}
+            </div>
+
+            {/* Cash Flow Intelligence Trend & Upcoming Bills */}
+            <div className="grid lg:grid-cols-3 gap-6">
+              {/* Cash Flow Chart */}
+              <div className="lg:col-span-2">
+                <Card title="Monthly Cash Flow Trend (Income vs Expenses)">
+                  {!cashFlow || (cashFlow.monthly_history || []).length === 0 ? (
+                    <p className="text-gray-400 text-sm py-4">Upload statements to visualize income vs expense movements.</p>
+                  ) : (
+                    <ResponsiveContainer width="100%" height={260}>
+                      <BarChart data={cashFlow.monthly_history} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#2a3350" />
+                        <XAxis dataKey="month" tick={{ fill: "#9ca3af", fontSize: 11 }} />
+                        <YAxis tick={{ fill: "#9ca3af", fontSize: 12 }} width={45} tickFormatter={formatINRCompact} />
+                        <Tooltip
+                          contentStyle={{ background: "#1a2133", border: "1px solid #2a3350", borderRadius: 8 }}
+                          labelStyle={{ color: "#fff" }}
+                          formatter={(value, name) => [formatINR(value), name === 'income' ? 'Income' : 'Expenses']}
+                        />
+                        <Legend wrapperStyle={{ fontSize: 12, color: '#9ca3af' }} />
+                        <Bar dataKey="income" name="Income" fill="#7de3d1" radius={[4, 4, 0, 0]} maxBarSize={32} />
+                        <Bar dataKey="expenses" name="Expenses" fill="#f5a3c7" radius={[4, 4, 0, 0]} maxBarSize={32} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  )}
+                </Card>
+              </div>
+
+              {/* Upcoming Recurring Bills */}
+              <div>
+                <Card title="Upcoming Subscriptions & Bills">
+                  <div className="flex items-center justify-between mb-3 -mt-2">
+                    <span className="text-xs text-gray-400">Due next 30 days</span>
+                    <Link to="/recurring" className="text-xs text-mint hover:underline font-semibold">Manage →</Link>
+                  </div>
+                  {upcomingBills.length === 0 ? (
+                    <p className="text-xs text-gray-400 py-6 text-center">
+                      No bills due in the next 30 days.
+                    </p>
+                  ) : (
+                    <div className="space-y-2.5">
+                      {upcomingBills.map((b) => (
+                        <div key={b.id} className="flex items-center justify-between p-2.5 bg-navy rounded-xl border border-navy/60">
+                          <div>
+                            <div className="text-sm font-semibold text-white">{b.name}</div>
+                            <div className="text-[11px] text-gray-400">Due: {b.next_expected_date}</div>
+                          </div>
+                          <div className="text-right font-bold text-mint text-sm">
+                            {formatINR(b.average_amount)}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </Card>
+              </div>
             </div>
 
             {/* Category chart */}

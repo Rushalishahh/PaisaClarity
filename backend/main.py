@@ -55,6 +55,9 @@ from category_routes import router as category_router
 from transaction_routes import router as transaction_router
 from budget_routes import router as budget_router
 from savings_routes import router as savings_router
+from cashflow_routes import router as cashflow_router
+from recurring_routes import router as recurring_router
+from alert_routes import router as alert_router
 from auth_dependency import get_current_user
 from backfill import ingest_statement_transactions
 from database import get_db, Base, engine
@@ -121,6 +124,11 @@ app.include_router(transaction_router)
 # Budget and Savings Goal endpoints (Phase 7)
 app.include_router(budget_router)
 app.include_router(savings_router)
+
+# Cash Flow, Recurring Payments, and Financial Alerts (Phase 8)
+app.include_router(cashflow_router)
+app.include_router(recurring_router)
+app.include_router(alert_router)
 
 
 @app.get("/")

@@ -16,12 +16,13 @@ This document tracks completed engineering phases, automated test metrics, archi
 | **Phase 5: Database Foundation** | `phase-5-database-foundation` | **Ready for Review** | **98 passed** (+8 tests) | • Normalized models: `FinancialAccount`, `Category`, `Transaction` with explicit foreign keys, indexes, and cascades.<br>• Alembic migration `e8b1c4f2a9d0` with zero schema drift against SQLAlchemy models and reversible `downgrade()`.<br>• Pre-seeded 17 standard system categories.<br>• Explicit `Numeric(14, 2)` monetary handling with `ROUND_HALF_UP` quantization.<br>• Repeatable, idempotent backfill pipeline (`backend/backfill.py`) using `(statement_id, source_row_index)` unique constraints.<br>• Unreconciled placeholder accounts (`account_type="imported"`, `is_reconciled=False`) for historical unassigned statements.<br>• Transfer grouping semantics (`transfer_group_id` UUID) and category deletion safety (`ON DELETE SET NULL`). |
 | **Phase 6: Transaction & Account Management** | `phase-6-transaction-management` | **Ready for Review** | **107 passed** (+9 tests) | • Complete REST APIs for accounts (`/accounts`), transactions (`/transactions`), transfers (`/transactions/transfer`), and categories (`/categories`).<br>• Automatic statement ingestion: statement uploads immediately create normalized `Transaction` rows with overlap detection.<br>• Calculated account balances derived from opening balances and movements; unreconciled accounts safely report unverified balance status.<br>• Account reconciliation workflows (in-place verification and transaction merging).<br>• Real-time analytics integration: manual transactions and category corrections immediately update spending charts and insights.<br>• Modern React UI pages: `/transactions` (search, multi-filters, pagination, category correction, add/transfer modals) and `/accounts` (net worth stats, cards, reconciliation modal, archive/delete). |
 | **Phase 7: Budgets & Savings Goals** | `phase-7-budgets-and-goals` | **Ready for Review** | **112 passed** (+5 tests) | • Normalized models: `Budget`, `BudgetAllocation`, `SavingsGoal`, `SavingsContribution`.<br>• Alembic migration `f7a8b9c0d1e2` with zero schema drift and reversible `downgrade()`.<br>• Full Budget REST APIs (`/budgets`, `/budgets/current`, `/budgets/performance/comparison`): monthly limits, category-specific allocations, utilization percentage, warning threshold alert detection, actual expense aggregation excluding transfers and overlap duplicates.<br>• Full Savings Goals REST APIs (`/goals`, `/goals/{id}/contributions`): target tracking, deposit/withdrawal ledger, client and server-side over-withdrawal prevention, monthly savings pace estimation, archive/unarchive.<br>• Modern React UI pages: `/budgets` (month navigator, KPI cards, allocation cards with badges and progress bars, create/edit/delete modals) and `/savings-goals` (cards, progress bars, contribution modal, ledger modal, archive/delete).<br>• Dashboard integration: Current Month Budget utilization widget and Active Savings Goals summary widget. |
+| **Phase 8: Cash Flow & Alerts** | `phase-8-cashflow-and-alerts` | **Ready for Review** | **118 passed** (+6 tests) | • Normalized models: `RecurringPayment`, `FinancialAlert`, and user `alert_preferences`.<br>• Alembic migration `a1b2c3d4e5f6` with zero schema drift and reversible `downgrade()`.<br>• Authoritative Cash Flow Intelligence (`/analytics/cash-flow`): income, expenses, net cash flow, savings rate, MoM trends, verified account balances, category breakdowns, largest expenses, and transparent rule-based health indicators.<br>• Recurring Payments & Subscriptions (`/recurring`, `/recurring/scan`): auto-detection scanner, monthly commitment metrics, upcoming bills due calendar, confirm/reject/pause workflows.<br>• Deterministic Financial Alerts (`/alerts`, `/alerts/evaluate`, `/alerts/preferences`): deduplicated alerts for budget breaches, upcoming bills, savings goals behind schedule, unusual expenses, and MoM surges.<br>• React UI: `/recurring` (subscription management), `/alerts` (alerts inbox & preferences), and upgraded Dashboard with Cash Flow Trend charts, active alerts banner, and upcoming bills. |
 
 ---
 
 ## 2. Test Results & Quality Metrics
 
-- **Backend Pytest Suite**: **112 passed, 3 warnings in ~44s** (100% pass rate).
+- **Backend Pytest Suite**: **118 passed, 3 warnings in ~46s** (100% pass rate).
   - `test_config_safety.py`: 10 tests passing
   - `test_categorizer_accuracy.py`: 6 tests passing
   - `test_auth_hardening.py`: 13 tests passing
@@ -29,9 +30,12 @@ This document tracks completed engineering phases, automated test metrics, archi
   - `test_database_foundation.py`: 8 tests passing
   - `test_phase6_management.py`: 9 tests passing
   - `test_phase7_budgets_goals.py`: 5 tests passing
+  - `test_phase8_cashflow_alerts.py`: 6 tests passing
   - Existing functional tests (`test_auth.py`, `test_ingest.py`, `test_insights.py`, etc.): 55 tests passing
-- **Frontend Production Build**: `npm run build` completed successfully (`vite build` $\rightarrow$ `dist/` compiled in ~4.6s).
-- **Alembic Schema Drift Check**: Ran all 6 migration revisions (`f7a8b9c0d1e2`) against a fresh disposable database; compared with `Base.metadata`. **Zero schema drift detected** (`diff: []`). Downgrade and re-upgrade verified cleanly.
+- **Frontend Test Suite**: **5 passed, 0 failures in ~360ms** (`npm test` via Node test runner).
+- **Frontend Production Build**: `npm run build` completed successfully (`vite build` $\rightarrow$ `dist/` compiled in ~2.4s).
+- **Frontend Lint**: `npm run lint` completed cleanly with 0 errors (`eslint .`).
+- **Alembic Schema Drift Check**: Ran all 7 migration revisions (`a1b2c3d4e5f6`) against a fresh disposable database; compared with `Base.metadata`. **Zero schema drift detected** (`diff: []`). Downgrade and re-upgrade verified cleanly.
 
 ---
 

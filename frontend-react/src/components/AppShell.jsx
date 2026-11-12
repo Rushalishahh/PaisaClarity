@@ -85,12 +85,31 @@ function GoalsIcon({ className = 'w-5 h-5' }) {
   )
 }
 
+function RecurringIcon({ className = 'w-5 h-5' }) {
+  return (
+    <svg viewBox="0 0 20 20" fill="none" className={className} aria-hidden="true">
+      <path d="M4 4v5h5M16 16v-5h-5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M15.5 8A6 6 0 005.5 5.5L4 9m12 2l-1.5 3.5A6 6 0 014.5 12" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  )
+}
+
+function AlertsIcon({ className = 'w-5 h-5' }) {
+  return (
+    <svg viewBox="0 0 20 20" fill="none" className={className} aria-hidden="true">
+      <path d="M10 2a5 5 0 00-5 5v3l-1.5 2.5h13L15 10V7a5 5 0 00-5-5zM8 15.5a2 2 0 004 0" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  )
+}
+
 const NAV_ITEMS = [
   { to: '/dashboard', label: 'Dashboard', Icon: DashboardIcon },
   { to: '/transactions', label: 'Transactions', Icon: TransactionsIcon },
   { to: '/accounts', label: 'Accounts', Icon: AccountsIcon },
   { to: '/budgets', label: 'Budgets', Icon: BudgetsIcon },
   { to: '/savings-goals', label: 'Savings Goals', Icon: GoalsIcon },
+  { to: '/recurring', label: 'Subscriptions', Icon: RecurringIcon },
+  { to: '/alerts', label: 'Alerts', Icon: AlertsIcon },
   { to: '/investments', label: 'Investments', Icon: InvestmentsIcon },
   { to: '/history', label: 'History', Icon: HistoryIcon },
 ]
@@ -114,26 +133,34 @@ export default function AppShell({ children }) {
   const location = useLocation()
   const [user, setUser] = useState(null)
   const [menuOpen, setMenuOpen] = useState(false)
+  const [unreadAlerts, setUnreadAlerts] = useState(0)
 
   useEffect(() => {
     let cancelled = false
     async function fetchUser() {
       try {
-        // api() attaches the token. A 401 (expired/bad token) redirects to
-        // /login inside api(); any other failure just leaves the skeleton,
-        // since the shell still works without a name.
         const data = await api('/auth/me')
         if (!cancelled) setUser(data)
       } catch {
-        // Non-fatal: the shell still works without a name; each page's own
-        // fetch handles real auth failures.
+        // Non-fatal
+      }
+    }
+    async function fetchAlertsCount() {
+      try {
+        const res = await api('/alerts?is_dismissed=false&is_read=false')
+        if (!cancelled && res?.unread_count !== undefined) {
+          setUnreadAlerts(res.unread_count)
+        }
+      } catch {
+        // Non-fatal
       }
     }
     fetchUser()
+    fetchAlertsCount()
     return () => {
       cancelled = true
     }
-  }, [])
+  }, [location.pathname])
 
   function handleLogout() {
     localStorage.removeItem('token')
@@ -160,7 +187,12 @@ export default function AppShell({ children }) {
               className={navLinkClass(location.pathname === to)}
             >
               <Icon className="w-5 h-5 shrink-0" />
-              {label}
+              <span className="flex-1">{label}</span>
+              {to === '/alerts' && unreadAlerts > 0 && (
+                <span className="bg-rose-500 text-white text-[10px] px-1.5 py-0.2 rounded-full font-bold">
+                  {unreadAlerts}
+                </span>
+              )}
             </NavLink>
           ))}
         </nav>
@@ -227,7 +259,12 @@ export default function AppShell({ children }) {
                 className={navLinkClass(location.pathname === to)}
               >
                 <Icon className="w-5 h-5 shrink-0" />
-                {label}
+                <span className="flex-1">{label}</span>
+                {to === '/alerts' && unreadAlerts > 0 && (
+                  <span className="bg-rose-500 text-white text-[10px] px-1.5 py-0.2 rounded-full font-bold">
+                    {unreadAlerts}
+                  </span>
+                )}
               </NavLink>
             ))}
 

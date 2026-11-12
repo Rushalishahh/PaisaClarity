@@ -541,3 +541,187 @@ class SavingsGoalResponse(BaseModel):
     contributions: list[SavingsContributionResponse] = []
     created_at: datetime
     updated_at: datetime
+
+
+# ---------------------------------------------------------------------------
+# Phase 8: Cash Flow Intelligence, Recurring Payments, and Financial Alerts
+# ---------------------------------------------------------------------------
+
+class CashFlowMonthly(BaseModel):
+    month: str  # YYYY-MM
+    income: Decimal
+    expenses: Decimal
+    net_cash_flow: Decimal
+    savings_rate_pct: float
+
+
+class CashFlowCategorySpend(BaseModel):
+    category: str
+    amount: Decimal
+    percentage: float
+
+
+class CashFlowTopExpense(BaseModel):
+    id: int
+    date: dt.date
+    description: str
+    category: str
+    amount: Decimal
+
+
+class CashFlowAccountSummary(BaseModel):
+    id: int
+    name: str
+    account_type: str
+    is_reconciled: bool
+    opening_balance: Decimal | None
+    calculated_balance: Decimal | None
+    total_credits: Decimal
+    total_debits: Decimal
+
+
+class HealthIndicator(BaseModel):
+    name: str
+    status: str  # healthy, warning, critical, neutral
+    score: float | None = None
+    label: str
+    description: str
+
+
+class CashFlowAnalysisResponse(BaseModel):
+    period_start: dt.date | None
+    period_end: dt.date | None
+    total_income: Decimal
+    total_expenses: Decimal
+    net_cash_flow: Decimal
+    savings_rate_pct: float
+    mom_income_change_pct: float | None
+    mom_expense_change_pct: float | None
+    mom_net_cash_flow_change: Decimal | None
+    monthly_history: list[CashFlowMonthly]
+    category_breakdown: list[CashFlowCategorySpend]
+    top_expenses: list[CashFlowTopExpense]
+    accounts: list[CashFlowAccountSummary]
+    health_indicators: list[HealthIndicator]
+
+
+class RecurringPaymentCreate(BaseModel):
+    name: str
+    category: str = "Bills"
+    average_amount: Decimal
+    frequency: str = "monthly"  # monthly, weekly, quarterly, yearly
+    account_id: int | None = None
+    next_expected_date: dt.date | None = None
+    notes: str | None = None
+
+    @field_validator("name")
+    @classmethod
+    def validate_name(cls, v: str) -> str:
+        s = v.strip()
+        if not s:
+            raise ValueError("Name cannot be empty")
+        return s
+
+    @field_validator("average_amount")
+    @classmethod
+    def validate_amount(cls, v: Decimal) -> Decimal:
+        if v <= Decimal("0.00"):
+            raise ValueError("Amount must be greater than zero")
+        return v.quantize(Decimal("0.01"))
+
+
+class RecurringPaymentUpdate(BaseModel):
+    name: str | None = None
+    category: str | None = None
+    average_amount: Decimal | None = None
+    frequency: str | None = None
+    status: str | None = None  # detected, confirmed, rejected, inactive
+    next_expected_date: dt.date | None = None
+    notes: str | None = None
+
+    @field_validator("name")
+    @classmethod
+    def validate_name(cls, v: str | None) -> str | None:
+        if v is not None:
+            s = v.strip()
+            if not s:
+                raise ValueError("Name cannot be empty")
+            return s
+        return v
+
+    @field_validator("average_amount")
+    @classmethod
+    def validate_amount(cls, v: Decimal | None) -> Decimal | None:
+        if v is not None:
+            if v <= Decimal("0.00"):
+                raise ValueError("Amount must be greater than zero")
+            return v.quantize(Decimal("0.01"))
+        return v
+
+
+class RecurringPaymentResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    user_id: int
+    account_id: int | None
+    name: str
+    category: str
+    average_amount: Decimal
+    frequency: str
+    status: str
+    next_expected_date: dt.date | None
+    last_payment_date: dt.date | None
+    first_seen_date: dt.date | None
+    occurrence_count: int
+    is_auto_detected: bool
+    notes: str | None
+    created_at: datetime
+    updated_at: datetime
+
+
+class RecurringSummaryResponse(BaseModel):
+    total_monthly_commitment: Decimal
+    active_count: int
+    detected_count: int
+    upcoming_payments: list[RecurringPaymentResponse]
+    items: list[RecurringPaymentResponse]
+
+
+class AlertResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    user_id: int
+    alert_type: str
+    severity: str
+    title: str
+    message: str
+    related_entity_type: str | None
+    related_entity_id: int | None
+    dedup_key: str
+    is_read: bool
+    is_dismissed: bool
+    created_at: datetime
+    read_at: datetime | None
+
+
+class AlertListResponse(BaseModel):
+    unread_count: int
+    items: list[AlertResponse]
+
+
+class AlertPreferencesUpdate(BaseModel):
+    budget_alerts: bool | None = None
+    recurring_alerts: bool | None = None
+    unusual_spending_alerts: bool | None = None
+    goal_alerts: bool | None = None
+    large_expense_threshold: Decimal | None = None
+
+
+class AlertPreferencesResponse(BaseModel):
+    budget_alerts: bool
+    recurring_alerts: bool
+    unusual_spending_alerts: bool
+    goal_alerts: bool
+    large_expense_threshold: Decimal

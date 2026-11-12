@@ -7,6 +7,8 @@ import Transactions from './pages/Transactions'
 import Accounts from './pages/Accounts'
 import Budgets from './pages/Budgets'
 import SavingsGoals from './pages/SavingsGoals'
+import RecurringPayments from './pages/RecurringPayments'
+import Alerts from './pages/Alerts'
 import History from './pages/History'
 import Investments from './pages/Investments'
 import ProtectedRoute from './components/ProtectedRoute'
@@ -55,6 +57,22 @@ function App() {
           element={
             <ProtectedRoute>
               <SavingsGoals />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/recurring"
+          element={
+            <ProtectedRoute>
+              <RecurringPayments />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/alerts"
+          element={
+            <ProtectedRoute>
+              <Alerts />
             </ProtectedRoute>
           }
         />
