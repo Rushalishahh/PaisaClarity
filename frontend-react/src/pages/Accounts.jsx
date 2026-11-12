@@ -44,8 +44,8 @@ export default function Accounts() {
 
   const fetchAccounts = useCallback(async () => {
     try {
-      setError(null)
       const data = await api(`/accounts?include_archived=${showArchived}&include_imported=true`)
+      setError(null)
       setAccounts(data || [])
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Failed to load accounts')
@@ -55,8 +55,25 @@ export default function Accounts() {
   }, [showArchived])
 
   useEffect(() => {
-    fetchAccounts()
-  }, [fetchAccounts])
+    let ignore = false
+    api(`/accounts?include_archived=${showArchived}&include_imported=true`)
+      .then((data) => {
+        if (!ignore) {
+          setError(null)
+          setAccounts(data || [])
+          setLoading(false)
+        }
+      })
+      .catch((err) => {
+        if (!ignore) {
+          setError(err instanceof ApiError ? err.message : 'Failed to load accounts')
+          setLoading(false)
+        }
+      })
+    return () => {
+      ignore = true
+    }
+  }, [showArchived])
 
   // Summary Metrics
   const verifiedAccounts = accounts.filter((a) => a.is_reconciled && a.account_type !== 'imported' && !a.is_archived)

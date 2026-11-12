@@ -66,8 +66,32 @@ export default function RecurringPayments() {
   }, [])
 
   useEffect(() => {
-    fetchRecurring()
-  }, [fetchRecurring])
+    let ignore = false
+    api('/recurring?include_inactive=true')
+      .then((res) => {
+        if (!ignore) {
+          setError(null)
+          setData(res || {
+            total_monthly_commitment: '0.00',
+            active_count: 0,
+            detected_count: 0,
+            upcoming_payments: [],
+            items: [],
+          })
+          setLoading(false)
+        }
+      })
+      .catch((err) => {
+        if (!ignore) {
+          setError(err instanceof ApiError ? err.message : 'Failed to load recurring payments')
+          setLoading(false)
+        }
+      })
+
+    return () => {
+      ignore = true
+    }
+  }, [])
 
   // Trigger scan
   async function handleScan() {

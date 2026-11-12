@@ -53,8 +53,26 @@ export default function SavingsGoals() {
   }, [includeArchived])
 
   useEffect(() => {
-    fetchGoals()
-  }, [fetchGoals])
+    let ignore = false
+    api(`/goals?include_archived=${includeArchived}`)
+      .then((data) => {
+        if (!ignore) {
+          setError(null)
+          setGoals(data || [])
+          setLoading(false)
+        }
+      })
+      .catch((err) => {
+        if (!ignore) {
+          setError(err instanceof ApiError ? err.message : 'Failed to load savings goals')
+          setLoading(false)
+        }
+      })
+
+    return () => {
+      ignore = true
+    }
+  }, [includeArchived])
 
   // Summary Metrics
   const activeGoals = goals.filter((g) => !g.is_archived)

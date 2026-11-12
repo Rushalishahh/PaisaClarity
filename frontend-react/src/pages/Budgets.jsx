@@ -72,8 +72,30 @@ export default function Budgets() {
   }, [selectedMonth, selectedYear])
 
   useEffect(() => {
-    fetchBudget()
-  }, [fetchBudget])
+    let ignore = false
+    api(`/budgets?month=${selectedMonth}&year=${selectedYear}`)
+      .then((data) => {
+        if (!ignore) {
+          setError(null)
+          if (data && data.length > 0) {
+            setBudget(data[0])
+          } else {
+            setBudget(null)
+          }
+          setLoading(false)
+        }
+      })
+      .catch((err) => {
+        if (!ignore) {
+          setError(err instanceof ApiError ? err.message : 'Failed to load budget')
+          setLoading(false)
+        }
+      })
+
+    return () => {
+      ignore = true
+    }
+  }, [selectedMonth, selectedYear])
 
   // Navigation handlers
   function handlePrevMonth() {

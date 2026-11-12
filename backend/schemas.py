@@ -2,7 +2,7 @@ import datetime as dt
 from datetime import datetime
 from decimal import Decimal
 from typing import Optional, List, Dict, Any
-from pydantic import BaseModel, EmailStr, model_validator, field_validator, ConfigDict
+from pydantic import BaseModel, EmailStr, model_validator, field_validator, ConfigDict, Field
 
 class UserSignup(BaseModel):
     email: EmailStr
@@ -725,3 +725,51 @@ class AlertPreferencesResponse(BaseModel):
     unusual_spending_alerts: bool
     goal_alerts: bool
     large_expense_threshold: Decimal
+
+
+# --- Phase 9: AI Copilot Schemas ---
+
+class AIChatRequest(BaseModel):
+    prompt: str = Field(..., min_length=1, max_length=2500, description="User's query or message to AI Copilot")
+    conversation_id: int | None = Field(None, description="Optional existing conversation ID to continue")
+
+
+class AIChatResponse(BaseModel):
+    conversation_id: int
+    title: str
+    response: str
+    tool_calls: list[dict] = Field(default_factory=list)
+
+
+class AIMessageResponse(BaseModel):
+    id: int
+    conversation_id: int
+    role: str
+    content: str
+    tool_calls: list[dict] | None = None
+    created_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class AIConversationResponse(BaseModel):
+    id: int
+    title: str
+    is_archived: bool
+    created_at: datetime
+    updated_at: datetime
+    message_count: int = 0
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class AIConversationDetailResponse(BaseModel):
+    id: int
+    title: str
+    is_archived: bool
+    created_at: datetime
+    updated_at: datetime
+    messages: list[AIMessageResponse]
+
+    model_config = ConfigDict(from_attributes=True)
+

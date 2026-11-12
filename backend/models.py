@@ -33,6 +33,7 @@ class User(Base):
     savings_goals = relationship("SavingsGoal", back_populates="user", cascade="all, delete-orphan")
     recurring_payments = relationship("RecurringPayment", back_populates="user", cascade="all, delete-orphan")
     alerts = relationship("FinancialAlert", back_populates="user", cascade="all, delete-orphan")
+    ai_conversations = relationship("AIConversation", back_populates="user", cascade="all, delete-orphan")
     alert_preferences = Column(JSON, nullable=True)
 
 
@@ -343,3 +344,39 @@ class FinancialAlert(Base):
     )
 
     user = relationship("User", back_populates="alerts")
+
+
+# ---------------------------------------------------------------------------
+# Phase 9: AI Financial Copilot Models
+# ---------------------------------------------------------------------------
+
+class AIConversation(Base):
+    __tablename__ = "ai_conversations"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    title = Column(String(255), nullable=False, default="New Conversation")
+    is_archived = Column(Boolean, nullable=False, default=False, index=True)
+
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
+
+    user = relationship("User", back_populates="ai_conversations")
+    messages = relationship("AIMessage", back_populates="conversation", cascade="all, delete-orphan", order_by="AIMessage.id.asc()")
+
+
+class AIMessage(Base):
+    __tablename__ = "ai_messages"
+
+    id = Column(Integer, primary_key=True, index=True)
+    conversation_id = Column(Integer, ForeignKey("ai_conversations.id", ondelete="CASCADE"), nullable=False, index=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    role = Column(String(20), nullable=False)  # user, assistant, system, tool
+    content = Column(Text, nullable=False)
+    tool_calls = Column(JSON, nullable=True)
+    tool_results = Column(JSON, nullable=True)
+
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+    conversation = relationship("AIConversation", back_populates="messages")
+    user = relationship("User")

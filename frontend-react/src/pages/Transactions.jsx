@@ -114,8 +114,41 @@ export default function Transactions() {
   }, [page, pageSize, sortBy, sortOrder, search, selectedAccount, selectedCategory, selectedType, startDate, endDate])
 
   useEffect(() => {
-    fetchTransactions()
-  }, [fetchTransactions])
+    let ignore = false
+    const params = new URLSearchParams({
+      page: String(page),
+      page_size: String(pageSize),
+      sort_by: sortBy,
+      sort_order: sortOrder,
+    })
+    if (search.trim()) params.append('search', search.trim())
+    if (selectedAccount) params.append('account_id', selectedAccount)
+    if (selectedCategory) params.append('category', selectedCategory)
+    if (selectedType) params.append('type', selectedType)
+    if (startDate) params.append('start_date', startDate)
+    if (endDate) params.append('end_date', endDate)
+
+    api(`/transactions?${params.toString()}`)
+      .then((res) => {
+        if (!ignore) {
+          setError(null)
+          setTransactions(res.items || [])
+          setTotal(res.total || 0)
+          setPages(res.pages || 1)
+          setLoading(false)
+        }
+      })
+      .catch((err) => {
+        if (!ignore) {
+          setError(err instanceof ApiError ? err.message : 'Failed to load transactions')
+          setLoading(false)
+        }
+      })
+
+    return () => {
+      ignore = true
+    }
+  }, [page, pageSize, sortBy, sortOrder, search, selectedAccount, selectedCategory, selectedType, startDate, endDate])
 
   // Reset pagination on filter change
   function handleFilterChange(setter, val) {

@@ -95,9 +95,32 @@ function Dashboard() {
   const [upcomingBills, setUpcomingBills] = useState([])
 
   useEffect(() => {
-    loadInsights('all')
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+    let ignore = false
+    api('/insights?scope=all')
+      .then((res) => {
+        if (!ignore) {
+          if (res.analysis) {
+            setData(res.analysis)
+            setTxCount(res.transactions_count)
+            setInsightsMessage("")
+          } else {
+            setData(null)
+            setTxCount(0)
+            setInsightsMessage(res.message || "No transactions available for this scope.")
+          }
+          setScope('all')
+        }
+      })
+      .catch((err) => {
+        if (!ignore) {
+          toast.error(err.message)
+        }
+      })
+
+    return () => {
+      ignore = true
+    }
+  }, [toast])
 
   useEffect(() => {
     let cancelled = false

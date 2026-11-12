@@ -68,8 +68,35 @@ export default function Alerts() {
   }, [filterTab])
 
   useEffect(() => {
-    fetchAlerts()
-  }, [fetchAlerts])
+    let ignore = false
+    const isDismissed = filterTab === 'dismissed'
+    const isRead = filterTab === 'unread' ? false : undefined
+    const severity = filterTab === 'critical_warning' ? 'warning' : undefined
+
+    let query = `?is_dismissed=${isDismissed}`
+    if (isRead !== undefined) query += `&is_read=${isRead}`
+    if (severity) query += `&severity=${severity}`
+
+    api(`/alerts${query}`)
+      .then((res) => {
+        if (!ignore) {
+          setError(null)
+          setAlerts(res.items || [])
+          setUnreadCount(res.unread_count || 0)
+          setLoading(false)
+        }
+      })
+      .catch((err) => {
+        if (!ignore) {
+          setError(err instanceof ApiError ? err.message : 'Failed to load alerts')
+          setLoading(false)
+        }
+      })
+
+    return () => {
+      ignore = true
+    }
+  }, [filterTab])
 
   // Fetch preferences
   async function handleOpenPreferences() {

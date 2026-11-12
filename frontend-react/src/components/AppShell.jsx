@@ -102,8 +102,18 @@ function AlertsIcon({ className = 'w-5 h-5' }) {
   )
 }
 
+function CopilotIcon({ className = 'w-5 h-5' }) {
+  return (
+    <svg viewBox="0 0 20 20" fill="none" className={className} aria-hidden="true">
+      <path d="M10 2l1.5 4.5L16 8l-4.5 1.5L10 14l-1.5-4.5L4 8l4.5-1.5L10 2z" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M15 13l.8 2.2L18 16l-2.2.8L15 19l-.8-2.2L12 16l2.2-.8L15 13z" fill="currentColor" opacity="0.6" />
+    </svg>
+  )
+}
+
 const NAV_ITEMS = [
   { to: '/dashboard', label: 'Dashboard', Icon: DashboardIcon },
+  { to: '/copilot', label: 'AI Copilot', Icon: CopilotIcon },
   { to: '/transactions', label: 'Transactions', Icon: TransactionsIcon },
   { to: '/accounts', label: 'Accounts', Icon: AccountsIcon },
   { to: '/budgets', label: 'Budgets', Icon: BudgetsIcon },

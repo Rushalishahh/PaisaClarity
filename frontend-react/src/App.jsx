@@ -9,6 +9,7 @@ import Budgets from './pages/Budgets'
 import SavingsGoals from './pages/SavingsGoals'
 import RecurringPayments from './pages/RecurringPayments'
 import Alerts from './pages/Alerts'
+import AiCopilot from './pages/AiCopilot'
 import History from './pages/History'
 import Investments from './pages/Investments'
 import ProtectedRoute from './components/ProtectedRoute'
@@ -25,6 +26,14 @@ function App() {
           element={
             <ProtectedRoute>
               <Dashboard />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/copilot"
+          element={
+            <ProtectedRoute>
+              <AiCopilot />
             </ProtectedRoute>
           }
         />
