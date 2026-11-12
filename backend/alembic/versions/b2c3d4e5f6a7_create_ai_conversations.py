@@ -25,7 +25,7 @@ def upgrade() -> None:
         sa.Column('id', sa.Integer(), nullable=False),
         sa.Column('user_id', sa.Integer(), nullable=False),
         sa.Column('title', sa.String(length=255), server_default='New Conversation', nullable=False),
-        sa.Column('is_archived', sa.Boolean(), server_default=sa.text('0'), nullable=False),
+        sa.Column('is_archived', sa.Boolean(), server_default=sa.text('false'), nullable=False),
         sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
         sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
         sa.ForeignKeyConstraint(['user_id'], ['users.id'], ondelete='CASCADE'),

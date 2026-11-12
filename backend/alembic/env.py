@@ -13,6 +13,10 @@ sys.path.append(os.getcwd())
 
 load_dotenv()
 
+# Prioritize ALEMBIC_DATABASE_URL or override if provided
+if os.getenv("ALEMBIC_DATABASE_URL"):
+    os.environ["DATABASE_URL"] = os.getenv("ALEMBIC_DATABASE_URL")
+
 from database import Base
 import models
 

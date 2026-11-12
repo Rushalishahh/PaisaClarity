@@ -502,6 +502,16 @@ async def upload_statement(
     db.refresh(statement_record)  # populates statement_record.id and .uploaded_at from the DB
 
     # Ingest statement transactions into normalized Transaction rows
+    # Verify account ownership if account_id is explicitly passed
+    if account_id is not None:
+        user_acc = (
+            db.query(FinancialAccount)
+            .filter(FinancialAccount.id == account_id, FinancialAccount.user_id == current_user.id)
+            .first()
+        )
+        if not user_acc:
+            account_id = None  # Fallback safely to unassigned imported account
+
     ingest_statement_transactions(db, statement_record, account_id=account_id)
 
     return response

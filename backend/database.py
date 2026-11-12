@@ -10,9 +10,10 @@ from sqlalchemy.orm import declarative_base, sessionmaker
 logger = logging.getLogger(__name__)
 
 BASE_DIR = Path(__file__).resolve().parent
-# Load environment from backend/.env if present
-load_dotenv(dotenv_path=BASE_DIR / ".env")
-load_dotenv()
+# Load environment from backend/.env if present (only if DATABASE_URL not already explicitly set)
+if not os.getenv("DATABASE_URL"):
+    load_dotenv(dotenv_path=BASE_DIR / ".env")
+    load_dotenv()
 
 # Valid environments: development, test, production (with aliases)
 VALID_ENVIRONMENTS = {"development", "dev", "test", "testing", "production", "prod"}

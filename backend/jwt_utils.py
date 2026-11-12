@@ -88,14 +88,17 @@ def get_secret_key() -> str:
     return secret.strip()
 
 
-def create_access_token(data: dict) -> str:
+def create_access_token(data: dict, expires_delta: timedelta | None = None) -> str:
     """
     Create a signed JWT containing the given data (e.g. {'user_id': 5}).
-    Adds an expiration time automatically.
+    Adds an expiration time automatically, or uses expires_delta if specified.
     """
     secret = get_secret_key()
     to_encode = data.copy()
-    expire = datetime.now(timezone.utc) + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    if expires_delta is not None:
+        expire = datetime.now(timezone.utc) + expires_delta
+    else:
+        expire = datetime.now(timezone.utc) + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     to_encode.update({"exp": expire})
     encoded_jwt = jwt.encode(to_encode, secret, algorithm=ALGORITHM)
     return encoded_jwt
