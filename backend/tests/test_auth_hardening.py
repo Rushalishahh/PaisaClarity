@@ -183,6 +183,69 @@ def test_client_ip_custom_header_order(monkeypatch):
     assert get_client_ip(req) == "203.0.113.88"
 
 
+def test_login_rate_limiting_cannot_be_bypassed_by_rotating_spoofed_headers(client: TestClient, monkeypatch):
+    """When proxy headers are untrusted, an attacker rotating X-Forwarded-For or CF-Connecting-IP headers
+    cannot bypass rate limiting — they are still throttled based on socket connection."""
+    monkeypatch.delenv("RENDER", raising=False)
+    monkeypatch.delenv("TRUST_PROXY_HEADERS", raising=False)
+    limiter.reset()
+
+    # 10 login attempts with spoofed rotating headers
+    for i in range(10):
+        resp = client.post(
+            "/auth/login",
+            json={"email": "target@example.com", "password": "WrongPassword123!"},
+            headers={
+                "X-Forwarded-For": f"198.51.100.{i}",
+                "CF-Connecting-IP": f"203.0.113.{i}",
+            },
+        )
+        assert resp.status_code == 401, f"Attempt {i+1} should return 401, got {resp.status_code}"
+
+    # 11th attempt with another spoofed header MUST return 429 Rate Limit Exceeded
+    resp_blocked = client.post(
+        "/auth/login",
+        json={"email": "target@example.com", "password": "WrongPassword123!"},
+        headers={
+            "X-Forwarded-For": "198.51.100.99",
+            "CF-Connecting-IP": "203.0.113.99",
+        },
+    )
+    assert resp_blocked.status_code == 429
+    assert "Rate limit exceeded" in resp_blocked.json()["detail"]
+
+
+def test_login_rate_limiting_on_render_blocks_leftmost_xff_rotation(client: TestClient, monkeypatch):
+    """On Render (RENDER=true), an attacker rotating leftmost XFF hops while the real incoming IP
+    (rightmost hop appended by load balancer) is constant cannot bypass rate limiting."""
+    monkeypatch.setenv("RENDER", "true")
+    monkeypatch.delenv("PROXY_HEADER_ORDER", raising=False)
+    limiter.reset()
+
+    # 10 login attempts where attacker rotates leftmost hop, but proxy appended '198.51.100.55'
+    for i in range(10):
+        resp = client.post(
+            "/auth/login",
+            json={"email": "target@example.com", "password": "WrongPassword123!"},
+            headers={
+                "X-Forwarded-For": f"spoofed.client.{i}, 198.51.100.55",
+            },
+        )
+        assert resp.status_code == 401
+
+    # 11th attempt with new spoofed leftmost IP is still recognized as 198.51.100.55 and blocked
+    resp_blocked = client.post(
+        "/auth/login",
+        json={"email": "target@example.com", "password": "WrongPassword123!"},
+        headers={
+            "X-Forwarded-For": "another.spoofed.ip, 198.51.100.55",
+        },
+    )
+    assert resp_blocked.status_code == 429
+    assert "Rate limit exceeded" in resp_blocked.json()["detail"]
+
+
+
 # ---------------------------------------------------------------------------
 # Password Policy Tests (Signup vs Login)
 # ---------------------------------------------------------------------------

@@ -1,13 +1,15 @@
 services:
   # Backend FastAPI Web Service
+  # NOTE: Database migrations (Alembic) are strictly excluded from build and startup commands.
+  # Run migrations manually as a separate, explicitly approved step per docs/deployment-runbook.md.
   - type: web
     name: paisaclarity-backend
     runtime: python
     region: oregon
     plan: starter
     rootDir: backend
-    buildCommand: "pip install -r requirements.txt && alembic upgrade head"
-    startCommand: "uvicorn main:app --host 0.0.0.0 --port $PORT --workers 2 --proxy-headers --forwarded-allow-ips='*'"
+    buildCommand: "pip install -r requirements.txt"
+    startCommand: "uvicorn main:app --host 0.0.0.0 --port $PORT --workers 2 --proxy-headers --forwarded-allow-ips='127.0.0.1'"
     healthCheckPath: /health
     envVars:
       - key: ENVIRONMENT
@@ -34,3 +36,4 @@ services:
         value: "20"
       - key: DB_POOL_RECYCLE
         value: "300"
+

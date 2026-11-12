@@ -101,3 +101,4 @@ sequenceDiagram
 ### 6. Reporting & Financial Exports
 - **CSV & PDF Generation**: In-memory compilation of transaction registers and executive financial reports.
 - **Security**: Strict formula injection sanitization (escapes `=`, `+`, `-`, `@` characters in spreadsheets) and user-scoped query boundaries.
+

@@ -13,6 +13,7 @@
 > This runbook is a verified deployment procedure. No command in this document may be run against the live Supabase production database or production hosting instances without explicit user consent.
 
 - **Non-Destructive Guarantee**: Never run `alembic downgrade` against a production database containing user data unless preceded by a verified cold snapshot. Alembic downgrades drop tables and columns destructively.
+- **No Automatic Build Migrations**: Migrations (`alembic upgrade head`) are strictly excluded from automated build commands (`render.yaml`, Docker build). Schema modifications must only be executed as an explicit, operator-supervised runbook step before starting application processes.
 - **Credential Safety**: Never hardcode production database URLs or secrets in scripts, terminal history, or configuration files. Always pass `DATABASE_URL` via environment variables.
 - **Connection Isolation**: Ensure that maintenance tasks use direct connection pooling or standard port 5432 / pooler port 6543 with SSL enforced (`sslmode=require`).
 
@@ -196,3 +197,4 @@ If migration or deployment encounters an unrecoverable failure:
    ```bash
    python -m alembic current
    ```
+

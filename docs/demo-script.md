@@ -67,3 +67,4 @@
 - **Visual**: Copilot displays a structured markdown answer citing exact totals and savings percentage.
 - **Wrap-up**:
   > *"That is PaisaClarity: production-hardened, mathematically exact, and private by design. Full technical documentation, PostgreSQL test results, and browser test suites are available in our GitHub repository."*
+

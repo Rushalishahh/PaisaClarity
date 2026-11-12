@@ -18,6 +18,7 @@
 | **Sensitive Error Suppression** | No database queries, credentials, or internal traces leaked in HTTP 500s. | Handled via custom exception handlers in `main.py` and masked database URLs in `database.py:mask_url`. | **PASSED** |
 | **File Upload Hardening** | 10 MB max size limit, empty file rejection, MIME verification, path traversal protection. | Verified in `test_phase12_upload_security.py` (5 tests passing). In-memory processing only; no temporary file writes to host disk. | **PASSED** |
 | **Rate Limiting** | Protection against brute-force and resource exhaustion. | Configured with SlowAPI across `/auth/login` (10/min), `/auth/signup` (5/min), and `/ai/chat` (20/min). | **PASSED** |
+| **Proxy Trust & Anti-Spoofing** | Uvicorn must not trust open wildcard forwarded headers; SlowAPI must prevent header rotation bypass. | Uvicorn restricted to trusted proxies (`127.0.0.1` or configured CIDR, no open wildcard `*`). Tested in `test_auth_hardening.py`: rotating XFF/CF headers fails to bypass rate limits (429 enforced). | **PASSED** |
 | **External AI Resilience** | External API failures or timeouts must not crash the service. | Retry backoff with exponential delays (3 attempts) implemented in `backend/ai/provider.py`. | **PASSED** |
 | **Production Mock AI Prohibition** | Production must never silently fabricate financial advice with Mock LLM. | Enforced in `backend/ai/provider.py`. If `ENVIRONMENT=production` or `RENDER=true`, missing keys or `MOCK_AI=true` raises fatal error. | **PASSED** |
 | **Multi-Tenant User Isolation** | Strict IDOR defense across all resources. | Audited and verified in `test_phase12_auth_security.py`. Every query enforces `user_id == current_user.id`. | **PASSED** |
@@ -48,3 +49,4 @@
    - *Recommendation*: Verify client IP logging during staging deployment before going live.
 3. **Database SSL Connection Mode**:
    - Supabase requires SSL encryption. Always include `?sslmode=require` in production `DATABASE_URL`.
+

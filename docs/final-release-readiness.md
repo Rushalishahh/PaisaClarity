@@ -52,3 +52,4 @@ The following operations require your explicit authorization:
 2. **Branch Merge**: Authorize creating a Pull Request or merging `phase-13-deployment-readiness` into `master`.
 3. **Database Migration Execution**: Authorize running `alembic upgrade head` and backfill scripts against production Supabase PostgreSQL.
 4. **Cloud Hosting Deployments**: Authorize initiating production builds on Render or Vercel.
+
