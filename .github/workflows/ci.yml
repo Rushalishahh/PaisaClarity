@@ -28,13 +28,12 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r backend/requirements.txt
           pip install -r backend/requirements-dev.txt
-          pip install pytest-cov
 
       - name: Run Pytest with Coverage
         working-directory: backend
         # Runs with no secrets or external database configured (falls back safely to SQLite in memory)
         run: |
-          pytest --cov=. --cov-report=term-missing -q
+          python -m pytest -p pytest_cov --cov=. --cov-report=term-missing -q
 
   migrations:
     name: Database Migrations Check
