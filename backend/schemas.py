@@ -1,5 +1,5 @@
 import datetime as dt
-from datetime import datetime
+from datetime import date, datetime
 from decimal import Decimal
 from typing import Optional, List, Dict, Any
 from pydantic import BaseModel, EmailStr, model_validator, field_validator, ConfigDict, Field
